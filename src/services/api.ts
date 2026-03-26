@@ -1,0 +1,308 @@
+/**
+ * API Service
+ * Connects React frontend to PHP/MySQL backend
+ */
+
+const API_BASE_URL = '/api';
+
+// Token management
+const getToken = (): string | null => {
+  return localStorage.getItem('auth_token');
+};
+
+const setToken = (token: string): void => {
+  localStorage.setItem('auth_token', token);
+};
+
+const removeToken = (): void => {
+  localStorage.removeItem('auth_token');
+};
+
+// API request helper
+async function apiRequest<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const token = getToken();
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...(token && { Authorization: `Bearer ${token}` }),
+    ...options.headers,
+  };
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || 'An error occurred');
+  }
+
+  return data;
+}
+
+// Auth API
+export const authApi = {
+  login: async (email: string, password: string, role: string) => {
+    const data = await apiRequest<{ user: any; token: string }>('/auth.php?action=login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, role }),
+    });
+    setToken(data.token);
+    return data.user;
+  },
+
+  register: async (userData: {
+    email: string;
+    password: string;
+    name: string;
+    role?: string;
+    department?: string;
+    mobile?: string;
+    studentId?: string;
+    employeeId?: string;
+    designation?: string;
+  }) => {
+    const data = await apiRequest<{ user: any; token: string }>('/auth.php?action=register', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
+    setToken(data.token);
+    return data.user;
+  },
+
+  getCurrentUser: async () => {
+    return apiRequest<any>('/auth.php?action=me');
+  },
+
+  logout: () => {
+    removeToken();
+  },
+
+  isAuthenticated: (): boolean => {
+    return !!getToken();
+  },
+};
+
+// Grievances API
+export const grievancesApi = {
+  getAll: async (params?: {
+    status?: string;
+    category?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value) queryParams.append(key, String(value));
+      });
+    }
+    const query = queryParams.toString();
+    return apiRequest<{ grievances: any[]; pagination: any }>(
+      `/grievances.php${query ? `?${query}` : ''}`
+    );
+  },
+
+  getById: async (id: string | number) => {
+    return apiRequest<any>(`/grievances.php?id=${id}`);
+  },
+
+  create: async (grievanceData: {
+    category: string;
+    subject: string;
+    description: string;
+    isAnonymous?: boolean;
+  }) => {
+    return apiRequest<any>('/grievances.php', {
+      method: 'POST',
+      body: JSON.stringify(grievanceData),
+    });
+  },
+
+  update: async (
+    id: string | number,
+    updateData: {
+      status?: string;
+      assignedTo?: number;
+      reason?: string;
+    }
+  ) => {
+    return apiRequest<any>(`/grievances.php?id=${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updateData),
+    });
+  },
+
+  delete: async (id: string | number) => {
+    return apiRequest<{ message: string }>(`/grievances.php?id=${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  getStats: async () => {
+    return apiRequest<any>('/grievances.php?action=stats');
+  },
+};
+
+// Comments API
+export const commentsApi = {
+  getAll: async (grievanceId: string | number) => {
+    return apiRequest<any[]>(`/comments.php?grievance_id=${grievanceId}`);
+  },
+
+  add: async (
+    grievanceId: string | number,
+    content: string,
+    isInternal?: boolean
+  ) => {
+    return apiRequest<any>(`/comments.php?grievance_id=${grievanceId}`, {
+      method: 'POST',
+      body: JSON.stringify({ content, isInternal }),
+    });
+  },
+
+  delete: async (grievanceId: string | number, commentId: string | number) => {
+    return apiRequest<{ message: string }>(
+      `/comments.php?grievance_id=${grievanceId}&id=${commentId}`,
+      { method: 'DELETE' }
+    );
+  },
+};
+
+// Users API
+export const usersApi = {
+  getAll: async (role?: string) => {
+    const query = role ? `?role=${role}` : '';
+    return apiRequest<any[]>(`/users.php${query}`);
+  },
+
+  getById: async (id: string | number) => {
+    return apiRequest<any>(`/users.php?id=${id}`);
+  },
+
+  update: async (
+    id: string | number,
+    updateData: {
+      name?: string;
+      department?: string;
+      avatar?: string;
+      role?: string;
+      password?: string;
+    }
+  ) => {
+    return apiRequest<any>(`/users.php?id=${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updateData),
+    });
+  },
+
+  // Staff approval endpoints (admin only)
+  getPendingStaff: async () => {
+    return apiRequest<{ pending_staff: any[]; count: number }>('/users.php?action=pending-staff');
+  },
+
+  getStaffList: async () => {
+    return apiRequest<{ staff: any[]; count: number }>('/users.php?action=staff');
+  },
+
+  approveStaff: async (id: string | number) => {
+    return apiRequest<{ message: string; staff: any }>(`/users.php?id=${id}&action=approve`, {
+      method: 'PUT',
+    });
+  },
+
+  rejectStaff: async (id: string | number) => {
+    return apiRequest<{ message: string; staff: any }>(`/users.php?id=${id}&action=reject`, {
+      method: 'PUT',
+    });
+  },
+
+  deleteStaff: async (id: string | number) => {
+    return apiRequest<{ message: string }>(`/users.php?id=${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  changePassword: async (currentPassword: string, newPassword: string, confirmPassword: string) => {
+    return apiRequest<{ message: string }>('/users.php?action=change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
+    });
+  },
+};
+
+// Announcements API
+export const announcementsApi = {
+  getAll: async () => {
+    return apiRequest<{ announcements: any[] }>('/announcements.php');
+  },
+
+  getById: async (id: string | number) => {
+    return apiRequest<any>(`/announcements.php?id=${id}`);
+  },
+
+  create: async (data: {
+    title: string;
+    content: string;
+    targetAudience: 'all' | 'students' | 'staff' | 'both';
+    targetDepartment?: string;
+  }) => {
+    return apiRequest<{ message: string; id: number }>('/announcements.php', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  update: async (id: string | number, data: {
+    title?: string;
+    content?: string;
+    targetAudience?: 'all' | 'students' | 'staff' | 'both';
+    targetDepartment?: string;
+    isActive?: boolean;
+  }) => {
+    return apiRequest<{ message: string }>(`/announcements.php?id=${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  delete: async (id: string | number) => {
+    return apiRequest<{ message: string }>(`/announcements.php?id=${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  getNotifications: async () => {
+    return apiRequest<{ notifications: any[] }>('/announcements.php?action=notifications');
+  },
+
+  getUnreadCount: async () => {
+    return apiRequest<{ count: number }>('/announcements.php?action=unread-count');
+  },
+
+  markAsRead: async (notificationId: string) => {
+    return apiRequest<{ message: string }>('/announcements.php?action=mark-read', {
+      method: 'POST',
+      body: JSON.stringify({ notificationId }),
+    });
+  },
+
+  markAllAsRead: async () => {
+    return apiRequest<{ message: string }>('/announcements.php?action=mark-all-read', {
+      method: 'POST',
+    });
+  },
+};
+
+export default {
+  auth: authApi,
+  grievances: grievancesApi,
+  comments: commentsApi,
+  users: usersApi,
+  announcements: announcementsApi,
+};

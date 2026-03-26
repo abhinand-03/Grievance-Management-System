@@ -1,0 +1,250 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 228 30% 8%;
+    --foreground: 210 40% 96%;
+
+    --card: 228 24% 11%;
+    --card-foreground: 210 35% 95%;
+
+    --popover: 228 24% 12%;
+    --popover-foreground: 210 35% 95%;
+
+    --primary: 232 62% 52%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 226 20% 18%;
+    --secondary-foreground: 210 30% 92%;
+
+    --muted: 226 18% 15%;
+    --muted-foreground: 218 16% 70%;
+
+    --accent: 184 86% 47%;
+    --accent-foreground: 222 47% 10%;
+
+    --destructive: 0 78% 58%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 222 18% 24%;
+    --input: 222 18% 24%;
+    --ring: 184 86% 47%;
+
+    --radius: 0.9rem;
+
+    --status-pending: 40 95% 55%;
+    --status-in-review: 212 95% 64%;
+    --status-resolved: 154 70% 45%;
+    --status-rejected: 0 78% 58%;
+    --status-escalated: 274 82% 63%;
+
+    --priority-low: 154 70% 45%;
+    --priority-medium: 40 95% 55%;
+    --priority-high: 27 96% 60%;
+    --priority-critical: 0 78% 58%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(232 62% 52%) 0%, hsl(224 55% 44%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(184 86% 47%) 0%, hsl(176 80% 42%) 100%);
+    --gradient-hero: radial-gradient(1200px 500px at 20% -10%, hsl(232 62% 52% / 0.24), transparent 60%),
+      radial-gradient(900px 400px at 100% 0%, hsl(184 86% 47% / 0.16), transparent 60%),
+      linear-gradient(180deg, hsl(228 30% 8%) 0%, hsl(228 26% 7%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(228 24% 13%) 0%, hsl(228 22% 10%) 100%);
+
+    --shadow-sm: 0 1px 2px 0 hsl(220 60% 2% / 0.2);
+    --shadow-md: 0 6px 20px -8px hsl(220 60% 2% / 0.35);
+    --shadow-lg: 0 14px 28px -12px hsl(220 60% 2% / 0.45);
+    --shadow-xl: 0 20px 40px -14px hsl(220 60% 2% / 0.55);
+    --shadow-card: 0 8px 30px hsl(220 60% 2% / 0.35);
+    --shadow-card-hover: 0 14px 40px hsl(220 60% 2% / 0.45), 0 0 0 1px hsl(184 86% 47% / 0.25);
+
+    --sidebar-background: 228 28% 9%;
+    --sidebar-foreground: 210 32% 92%;
+    --sidebar-primary: 232 62% 52%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 226 20% 16%;
+    --sidebar-accent-foreground: 210 40% 96%;
+    --sidebar-border: 224 18% 18%;
+    --sidebar-ring: 184 86% 47%;
+  }
+
+  .dark {
+    --background: 228 30% 8%;
+    --foreground: 210 40% 96%;
+    --card: 228 24% 11%;
+    --card-foreground: 210 35% 95%;
+    --popover: 228 24% 12%;
+    --popover-foreground: 210 35% 95%;
+    --primary: 232 62% 52%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 226 20% 18%;
+    --secondary-foreground: 210 30% 92%;
+    --muted: 226 18% 15%;
+    --muted-foreground: 218 16% 70%;
+    --accent: 184 86% 47%;
+    --accent-foreground: 222 47% 10%;
+    --destructive: 0 78% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 222 18% 24%;
+    --input: 222 18% 24%;
+    --ring: 184 86% 47%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+    background:
+      radial-gradient(1000px 500px at 0% 0%, hsl(232 62% 52% / 0.08), transparent 55%),
+      radial-gradient(900px 500px at 100% 0%, hsl(184 86% 47% / 0.05), transparent 55%),
+      hsl(var(--background));
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+
+  .gradient-accent {
+    background: var(--gradient-accent);
+  }
+
+  .gradient-card {
+    background: var(--gradient-card);
+  }
+
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  .shadow-card-hover {
+    box-shadow: var(--shadow-card-hover);
+  }
+
+  .glass-effect {
+    @apply backdrop-blur-md bg-card/70 border border-border/70;
+  }
+
+  .status-badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium;
+  }
+
+  .status-pending {
+    @apply bg-amber-500/20 text-amber-300 border border-amber-400/30;
+  }
+
+  .status-in-review {
+    @apply bg-blue-500/20 text-blue-300 border border-blue-400/30;
+  }
+
+  .status-resolved {
+    @apply bg-emerald-500/20 text-emerald-300 border border-emerald-400/30;
+  }
+
+  .status-rejected {
+    @apply bg-red-500/20 text-red-300 border border-red-400/30;
+  }
+
+  .status-escalated {
+    @apply bg-violet-500/20 text-violet-300 border border-violet-400/30;
+  }
+
+  .status-solved {
+    @apply bg-green-500/20 text-green-300 border border-green-400/30;
+  }
+
+  .status-considered {
+    @apply bg-cyan-500/20 text-cyan-300 border border-cyan-400/30;
+  }
+
+  .status-denied {
+    @apply bg-rose-500/20 text-rose-300 border border-rose-400/30;
+  }
+
+  .priority-low {
+    @apply bg-emerald-500/20 text-emerald-300 border border-emerald-400/30;
+  }
+
+  .priority-medium {
+    @apply bg-amber-500/20 text-amber-300 border border-amber-400/30;
+  }
+
+  .priority-high {
+    @apply bg-orange-500/20 text-orange-300 border border-orange-400/30;
+  }
+
+  .priority-critical {
+    @apply bg-red-500/20 text-red-300 border border-red-400/30;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.5s ease-out forwards;
+  }
+
+  .animate-slide-in-right {
+    animation: slideInRight 0.3s ease-out forwards;
+  }
+
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
