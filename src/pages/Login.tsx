@@ -85,6 +85,15 @@ export default function Login() {
     'CANTEEN'
   ];
 
+  const studentDepartments = [
+    'COMPUTER SCIENCE AND ENGINEERING',
+    'ELECTRONICS AND COMMUNICATION ENGINEERING',
+    'ELECTRICAL AND ELECTRONICS ENGINEERING',
+    'MECHANICAL ENGINEERING',
+    'CIVIL ENGINEERING',
+    'INFORMATION TECHNOLOGY'
+  ];
+
   const staffDesignations = [
     'Head Of The Department',
     'Faculty In Charge'
@@ -365,7 +374,10 @@ export default function Login() {
                         type="button"
                         variant={registerRole === 'student' ? 'default' : 'outline'}
                         className="flex items-center gap-2"
-                        onClick={() => setRegisterRole('student')}
+                        onClick={() => {
+                          setRegisterRole('student');
+                          setRegisterDepartment('');
+                        }}
                       >
                         <GraduationCap className="h-4 w-4" />
                         Student
@@ -374,7 +386,10 @@ export default function Login() {
                         type="button"
                         variant={registerRole === 'staff' ? 'default' : 'outline'}
                         className="flex items-center gap-2"
-                        onClick={() => setRegisterRole('staff')}
+                        onClick={() => {
+                          setRegisterRole('staff');
+                          setRegisterDepartment('');
+                        }}
                       >
                         <UserCog className="h-4 w-4" />
                         Faculty/Staff
@@ -486,7 +501,7 @@ export default function Login() {
                         <SelectValue placeholder="Department" />
                       </SelectTrigger>
                       <SelectContent>
-                        {departments.map((dept) => (
+                        {(registerRole === 'student' ? studentDepartments : departments).map((dept) => (
                           <SelectItem key={dept} value={dept}>
                             {dept}
                           </SelectItem>
