@@ -185,7 +185,13 @@ function getGrievance($id) {
 function createGrievance() {
     $authUser = requireAuth();
     $db = getDB();
-    $data = getRequestBody();
+    $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+    $isMultipart = stripos($contentType, 'multipart/form-data') !== false;
+    $data = $isMultipart ? $_POST : getRequestBody();
+
+    if (!is_array($data)) {
+        $data = [];
+    }
     
     // Only students can create grievances
     // Check both user_type and role to be safe
@@ -200,7 +206,8 @@ function createGrievance() {
     $priority = $data['priority'] ?? 'medium';
     $subject = $data['subject'] ?? '';
     $description = $data['description'] ?? '';
-    $isAnonymous = $data['isAnonymous'] ?? false;
+    $isAnonymousRaw = $data['isAnonymous'] ?? false;
+    $isAnonymous = filter_var($isAnonymousRaw, FILTER_VALIDATE_BOOLEAN);
     
     if (empty($category) || empty($subject) || empty($description)) {
         jsonResponse(['error' => 'Category, subject, and description are required'], 400);
@@ -272,6 +279,11 @@ function createGrievance() {
     ]);
     
     $grievanceId = $db->lastInsertId();
+
+    // Persist uploaded files as grievance attachments when multipart form-data is used.
+    if ($isMultipart) {
+        saveGrievanceAttachments($db, $grievanceId);
+    }
     
     // Log initial status
     $stmt = $db->prepare("INSERT INTO status_logs (grievance_id, from_status, to_status, changed_by, changed_by_type, changed_by_name) 
@@ -299,8 +311,90 @@ function createGrievance() {
     $stmt = $db->prepare("SELECT * FROM grievances WHERE id = ?");
     $stmt->execute([$grievanceId]);
     $grievance = $stmt->fetch();
+
+    // Include attachments in create response for immediate UI consistency.
+    $stmt = $db->prepare("SELECT * FROM attachments WHERE grievance_id = ? ORDER BY created_at ASC");
+    $stmt->execute([$grievanceId]);
+    $grievance['attachments'] = $stmt->fetchAll();
     
     jsonResponse($grievance, 201);
+}
+
+function saveGrievanceAttachments($db, $grievanceId) {
+    if (empty($_FILES)) {
+        return;
+    }
+
+    $fileCollection = null;
+    if (isset($_FILES['attachments'])) {
+        $fileCollection = $_FILES['attachments'];
+    } else if (isset($_FILES['attachments[]'])) {
+        $fileCollection = $_FILES['attachments[]'];
+    }
+
+    if (!$fileCollection) {
+        return;
+    }
+
+    $uploadDir = __DIR__ . '/uploads';
+    if (!is_dir($uploadDir)) {
+        mkdir($uploadDir, 0755, true);
+    }
+
+    $maxSize = 5 * 1024 * 1024;
+    $allowedMimeToMeta = [
+        'image/jpeg' => ['type' => 'image', 'ext' => 'jpg'],
+        'image/png' => ['type' => 'image', 'ext' => 'png'],
+        'image/gif' => ['type' => 'image', 'ext' => 'gif'],
+        'application/pdf' => ['type' => 'pdf', 'ext' => 'pdf']
+    ];
+
+    $fileNames = is_array($fileCollection['name']) ? $fileCollection['name'] : [$fileCollection['name']];
+    $tmpNames = is_array($fileCollection['tmp_name']) ? $fileCollection['tmp_name'] : [$fileCollection['tmp_name']];
+    $fileSizes = is_array($fileCollection['size']) ? $fileCollection['size'] : [$fileCollection['size']];
+    $fileErrors = is_array($fileCollection['error']) ? $fileCollection['error'] : [$fileCollection['error']];
+
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+
+    for ($i = 0; $i < count($fileNames); $i++) {
+        $originalName = $fileNames[$i] ?? '';
+        $tmpName = $tmpNames[$i] ?? '';
+        $size = (int)($fileSizes[$i] ?? 0);
+        $error = (int)($fileErrors[$i] ?? UPLOAD_ERR_NO_FILE);
+
+        if ($error === UPLOAD_ERR_NO_FILE || empty($originalName)) {
+            continue;
+        }
+
+        if ($error !== UPLOAD_ERR_OK) {
+            continue;
+        }
+
+        if ($size <= 0 || $size > $maxSize) {
+            continue;
+        }
+
+        $mimeType = finfo_file($finfo, $tmpName);
+        if (!$mimeType || !isset($allowedMimeToMeta[$mimeType])) {
+            continue;
+        }
+
+        $meta = $allowedMimeToMeta[$mimeType];
+        $safeOriginalName = basename($originalName);
+        $storedName = uniqid('att_', true) . '.' . $meta['ext'];
+        $destinationPath = $uploadDir . '/' . $storedName;
+
+        if (!move_uploaded_file($tmpName, $destinationPath)) {
+            continue;
+        }
+
+        $publicUrl = '/Grievance%20Management%20System/api/uploads/' . rawurlencode($storedName);
+
+        $stmt = $db->prepare("INSERT INTO attachments (grievance_id, name, url, type, size) VALUES (?, ?, ?, ?, ?)");
+        $stmt->execute([$grievanceId, $safeOriginalName, $publicUrl, $meta['type'], $size]);
+    }
+
+    finfo_close($finfo);
 }
 
 function updateGrievance($id) {

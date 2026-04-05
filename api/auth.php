@@ -82,7 +82,12 @@ function handleLogin() {
         }
     }
     
-    if (!$user || !password_verify($password, $user['password'])) {
+    if (!$user) {
+        jsonResponse(['error' => 'Invalid credentials'], 401);
+    }
+
+    // Support legacy plaintext passwords and transparently migrate to hashed passwords.
+    if (!verifyPasswordFlexible($db, $user, $userType, $password)) {
         jsonResponse(['error' => 'Invalid credentials'], 401);
     }
     
@@ -104,6 +109,43 @@ function handleLogin() {
         'user' => $user,
         'token' => $token
     ]);
+}
+
+function verifyPasswordFlexible($db, &$user, $userType, $inputPassword) {
+    $storedPassword = $user['password'] ?? '';
+
+    if (empty($storedPassword)) {
+        return false;
+    }
+
+    // Normal secure path.
+    if (password_verify($inputPassword, $storedPassword)) {
+        return true;
+    }
+
+    // Legacy compatibility path for databases that still store plaintext passwords.
+    if (!hash_equals($storedPassword, $inputPassword)) {
+        return false;
+    }
+
+    // Migrate plaintext password to a secure hash after successful login.
+    $newHash = password_hash($inputPassword, PASSWORD_DEFAULT);
+    $tableMap = [
+        'student' => 'students',
+        'staff' => 'staff',
+        'admin' => 'admins'
+    ];
+
+    if (!isset($tableMap[$userType])) {
+        return true;
+    }
+
+    $table = $tableMap[$userType];
+    $stmt = $db->prepare("UPDATE {$table} SET password = ? WHERE id = ?");
+    $stmt->execute([$newHash, $user['id']]);
+    $user['password'] = $newHash;
+
+    return true;
 }
 
 function handleRegister() {

@@ -326,6 +326,14 @@ export default function GrievanceDetail() {
                           <p className="text-xs text-muted-foreground">
                             {(attachment.size / 1024).toFixed(1)} KB
                           </p>
+                          <a
+                            href={attachment.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs text-accent hover:underline"
+                          >
+                            Open file
+                          </a>
                         </div>
                       </div>
                     ))}

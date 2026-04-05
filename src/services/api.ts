@@ -24,12 +24,16 @@ async function apiRequest<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = getToken();
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
   
   const headers: HeadersInit = {
-    'Content-Type': 'application/json',
     ...(token && { Authorization: `Bearer ${token}` }),
     ...options.headers,
   };
+
+  if (!isFormData) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
@@ -117,10 +121,30 @@ export const grievancesApi = {
     subject: string;
     description: string;
     isAnonymous?: boolean;
+    attachments?: File[];
   }) => {
+    const { attachments = [], ...payload } = grievanceData;
+
+    if (attachments.length > 0) {
+      const formData = new FormData();
+      formData.append('category', payload.category);
+      formData.append('subject', payload.subject);
+      formData.append('description', payload.description);
+      formData.append('isAnonymous', String(Boolean(payload.isAnonymous)));
+
+      attachments.forEach((file) => {
+        formData.append('attachments[]', file);
+      });
+
+      return apiRequest<any>('/grievances.php', {
+        method: 'POST',
+        body: formData,
+      });
+    }
+
     return apiRequest<any>('/grievances.php', {
       method: 'POST',
-      body: JSON.stringify(grievanceData),
+      body: JSON.stringify(payload),
     });
   },
 

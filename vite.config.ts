@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => ({
       '/api': {
         target: 'http://localhost',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '/campus-relief-stream-main/api'),
+        rewrite: (path) => path.replace(/^\/api/, '/Grievance%20Management%20System/api'),
       },
     },
   },

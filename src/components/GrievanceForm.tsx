@@ -56,6 +56,7 @@ export function GrievanceForm() {
         subject: formData.subject,
         description: formData.description,
         isAnonymous: formData.isAnonymous,
+        attachments: files,
       });
       
       toast.success('Grievance submitted successfully!', {
