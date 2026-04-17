@@ -17,6 +17,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { announcementsApi } from '@/services/api';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
   Bell, 
   LogOut, 
@@ -30,7 +31,7 @@ import {
   CheckCheck
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { cn } from '@/lib/utils';
+import { cn, resolveMediaUrl } from '@/lib/utils';
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -268,12 +269,19 @@ export function Header({ onMenuClick }: HeaderProps) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="flex items-center gap-2 px-2">
-                <div className="h-8 w-8 rounded-full bg-accent/10 flex items-center justify-center">
-                  <User className="h-4 w-4 text-accent" />
-                </div>
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={resolveMediaUrl(user?.avatar)} alt={user?.name || 'User'} />
+                  <AvatarFallback className="bg-accent/10 text-accent text-xs">
+                    {user?.name?.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'U'}
+                  </AvatarFallback>
+                </Avatar>
                 <div className="hidden md:block text-left">
                   <p className="text-sm font-medium">{user?.name || 'User'}</p>
-                  <p className="text-xs text-muted-foreground capitalize">{user?.role || 'Guest'}</p>
+                  <p className="text-xs text-muted-foreground capitalize">
+                    {user?.role === 'admin' && user?.principalType === 'temporary'
+                      ? 'Temporary Principal'
+                      : user?.role || 'Guest'}
+                  </p>
                 </div>
                 <ChevronDown className="h-4 w-4 text-muted-foreground hidden md:block" />
               </Button>

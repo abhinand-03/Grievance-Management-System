@@ -155,6 +155,17 @@ export default function GrievanceDetail() {
 
   const isStudent = user?.role === 'student';
   const canUpdateStatus = user?.role === 'staff' || user?.role === 'admin';
+  const finalDecisionLog = [...grievance.statusLogs]
+    .slice()
+    .reverse()
+    .find((log) => ['resolved', 'solved', 'considered', 'denied'].includes(log.toStatus));
+  const finalDecisionLabel = grievance.status === 'solved'
+    ? 'Solved by'
+    : grievance.status === 'resolved'
+      ? 'Resolved by'
+      : finalDecisionLog
+        ? 'Processed by'
+        : '';
 
   const handleAddComment = async () => {
     if (!newComment.trim() || !id) {
@@ -458,6 +469,16 @@ export default function GrievanceDetail() {
                   </div>
                 )}
 
+                {finalDecisionLog && finalDecisionLabel && (
+                  <div className="flex items-start gap-3">
+                    <User className="h-5 w-5 text-muted-foreground mt-0.5" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">{finalDecisionLabel}</p>
+                      <p className="font-medium">{finalDecisionLog.changedByName}</p>
+                    </div>
+                  </div>
+                )}
+
                 {grievance.escalatedAt && (
                   <div className="flex items-start gap-3">
                     <AlertTriangle className="h-5 w-5 text-destructive mt-0.5" />
@@ -497,7 +518,11 @@ export default function GrievanceDetail() {
                             : `Created as ${STATUS_LABELS[log.toStatus]}`}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          by {log.changedByName} • {format(log.createdAt, 'MMM d, h:mm a')}
+                          {log.toStatus === 'solved'
+                            ? `Solved by ${log.changedByName}`
+                            : log.toStatus === 'resolved'
+                              ? `Resolved by ${log.changedByName}`
+                              : `by ${log.changedByName}`} • {format(log.createdAt, 'MMM d, h:mm a')}
                         </p>
                         {log.reason && (
                           <p className="text-xs text-muted-foreground mt-1 italic">

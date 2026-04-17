@@ -1,13 +1,16 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { grievancesApi } from '@/services/api';
+import { grievancesApi, usersApi } from '@/services/api';
 import { StatusBadge } from '@/components/StatusBadge';
+import { useToast } from '@/hooks/use-toast';
+import { resolveMediaUrl } from '@/lib/utils';
 import { CATEGORY_LABELS, GrievanceStatus, GrievanceCategory } from '@/types/grievance';
 import { 
   User, 
@@ -21,7 +24,9 @@ import {
   FileText,
   RefreshCw,
   ExternalLink,
-  AlertCircle
+  AlertCircle,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 
 interface GrievanceItem {
@@ -35,9 +40,12 @@ interface GrievanceItem {
 
 export default function Profile() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [grievances, setGrievances] = useState<GrievanceItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [updatingPhoto, setUpdatingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const fetchGrievances = useCallback(async () => {
     if (user?.role !== 'student') return;
@@ -117,7 +125,7 @@ export default function Profile() {
   };
 
   const getRoleLabel = (role: string) => {
-    if (role === 'admin') return 'Principal';
+    if (role === 'admin') return (user as any).principalType === 'temporary' ? 'Temporary Principal' : 'Principal';
     if (role === 'staff') return 'Staff';
     if (role === 'student') return 'Student';
     return role?.charAt(0).toUpperCase() + role?.slice(1) || 'User';
@@ -128,6 +136,50 @@ export default function Profile() {
   const studentId = (user as any).student_id;
   const employeeId = (user as any).employee_id;
   const designation = (user as any).designation;
+
+  const handleAddPhotoClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handlePhotoSelection = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user?.id) return;
+
+    setUpdatingPhoto(true);
+    try {
+      await usersApi.update(user.id, { avatarFile: file });
+      toast({ title: 'Success', description: 'Profile photo updated successfully' });
+      window.location.reload();
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err.message || 'Failed to update profile photo',
+        variant: 'destructive',
+      });
+    } finally {
+      setUpdatingPhoto(false);
+      event.target.value = '';
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    if (!user?.id) return;
+
+    setUpdatingPhoto(true);
+    try {
+      await usersApi.update(user.id, { avatar: '' });
+      toast({ title: 'Success', description: 'Profile photo removed successfully' });
+      window.location.reload();
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err.message || 'Failed to remove profile photo',
+        variant: 'destructive',
+      });
+    } finally {
+      setUpdatingPhoto(false);
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -144,16 +196,48 @@ export default function Profile() {
           <Card className="md:col-span-1">
             <CardContent className="pt-6">
               <div className="flex flex-col items-center text-center">
-                <div className="h-24 w-24 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                  <span className="text-3xl font-bold text-primary">
-                    {getInitials(user.name)}
-                  </span>
+                <div className="relative mb-4">
+                  <Avatar className="h-24 w-24 border-2 border-border">
+                    <AvatarImage src={resolveMediaUrl((user as any).avatar)} alt={user.name || 'User'} />
+                    <AvatarFallback className="text-3xl font-bold text-primary bg-primary/10">
+                      {getInitials(user.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <Button
+                    type="button"
+                    size="icon"
+                    className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full"
+                    onClick={handleAddPhotoClick}
+                    disabled={updatingPhoto}
+                    title="Add or change profile photo"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+                    onChange={handlePhotoSelection}
+                  />
                 </div>
                 <h2 className="text-xl font-semibold">{user.name || 'Unknown User'}</h2>
                 <p className="text-muted-foreground text-sm">{user.email || 'No email'}</p>
                 <Badge className={`mt-3 ${getRoleBadgeColor(user.role)}`}>
                   {getRoleLabel(user.role)}
                 </Badge>
+                <div className="mt-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRemovePhoto}
+                    disabled={updatingPhoto || !(user as any).avatar}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Remove Photo
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>

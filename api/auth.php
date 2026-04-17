@@ -90,6 +90,10 @@ function handleLogin() {
     if (!verifyPasswordFlexible($db, $user, $userType, $password)) {
         jsonResponse(['error' => 'Invalid credentials'], 401);
     }
+
+    if ($userType === 'admin') {
+        finalizePrincipalTransferIfNeeded($db, $user);
+    }
     
     // Generate JWT token
     $token = jwt_encode([
@@ -294,12 +298,18 @@ function handleGetCurrentUser() {
             $user['user_type'] = 'staff';
         }
     } else if ($userType === 'admin') {
-        $stmt = $db->prepare("SELECT id, email, name, department, mobile, employee_id, designation, avatar, created_at FROM admins WHERE id = ?");
+        $selectPrincipalType = dbColumnExists($db, 'admins', 'principal_type')
+            ? ', principal_type'
+            : '';
+        $stmt = $db->prepare("SELECT id, email, name, department, mobile, employee_id, designation, avatar{$selectPrincipalType}, created_at FROM admins WHERE id = ?");
         $stmt->execute([$authUser['id']]);
         $user = $stmt->fetch();
         if ($user) {
             $user['role'] = 'admin';
             $user['user_type'] = 'admin';
+            if (!isset($user['principal_type'])) {
+                $user['principal_type'] = 'permanent';
+            }
         }
     }
     
@@ -308,4 +318,56 @@ function handleGetCurrentUser() {
     }
     
     jsonResponse($user);
+}
+
+function finalizePrincipalTransferIfNeeded($db, $adminUser) {
+    if (!dbTableExists($db, 'principal_invites')) {
+        return;
+    }
+
+    $stmt = $db->prepare("SELECT * FROM principal_invites 
+                          WHERE new_principal_email = ? AND transfer_mode = 'permanent' AND status = 'awaiting_login' 
+                          ORDER BY created_at DESC LIMIT 1");
+    $stmt->execute([$adminUser['email']]);
+    $invite = $stmt->fetch();
+
+    if (!$invite) {
+        return;
+    }
+
+    $db->beginTransaction();
+    try {
+        $stmt = $db->prepare("DELETE FROM admins WHERE id = ?");
+        $stmt->execute([$invite['requested_by_admin_id']]);
+
+        $stmt = $db->prepare("UPDATE principal_invites SET status = 'finalized', finalized_at = NOW() WHERE id = ?");
+        $stmt->execute([$invite['id']]);
+
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
+    }
+}
+
+function dbTableExists($db, $tableName) {
+    try {
+        $stmt = $db->prepare("SHOW TABLES LIKE ?");
+        $stmt->execute([$tableName]);
+        return (bool)$stmt->fetch();
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+function dbColumnExists($db, $tableName, $columnName) {
+    try {
+        $stmt = $db->prepare("SHOW COLUMNS FROM {$tableName} LIKE ?");
+        $stmt->execute([$columnName]);
+        return (bool)$stmt->fetch();
+    } catch (Throwable $e) {
+        return false;
+    }
 }

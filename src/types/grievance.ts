@@ -16,6 +16,7 @@ export interface User {
   role: UserRole;
   department?: string;
   avatar?: string;
+  principalType?: 'permanent' | 'temporary';
   createdAt: Date;
 }
 

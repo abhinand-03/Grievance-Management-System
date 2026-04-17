@@ -155,11 +155,32 @@ export const grievancesApi = {
       status?: string;
       assignedTo?: number;
       reason?: string;
+      name?: string;
+      department?: string;
+      avatar?: string;
+      avatarFile?: File;
     }
   ) => {
+    const { avatarFile, ...payload } = updateData;
+
+    if (avatarFile) {
+      const formData = new FormData();
+      Object.entries(payload).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          formData.append(key, String(value));
+        }
+      });
+      formData.append('avatarFile', avatarFile);
+
+      return apiRequest<any>(`/grievances.php?id=${id}`, {
+        method: 'PUT',
+        body: formData,
+      });
+    }
+
     return apiRequest<any>(`/grievances.php?id=${id}`, {
       method: 'PUT',
-      body: JSON.stringify(updateData),
+      body: JSON.stringify(payload),
     });
   },
 
@@ -218,11 +239,29 @@ export const usersApi = {
       avatar?: string;
       role?: string;
       password?: string;
+      avatarFile?: File;
     }
   ) => {
+    const { avatarFile, ...payload } = updateData;
+
+    if (avatarFile) {
+      const formData = new FormData();
+      Object.entries(payload).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          formData.append(key, String(value));
+        }
+      });
+      formData.append('avatarFile', avatarFile);
+
+      return apiRequest<any>(`/users.php?action=profile-update&id=${id}`, {
+        method: 'POST',
+        body: formData,
+      });
+    }
+
     return apiRequest<any>(`/users.php?id=${id}`, {
       method: 'PUT',
-      body: JSON.stringify(updateData),
+      body: JSON.stringify(payload),
     });
   },
 
@@ -257,6 +296,48 @@ export const usersApi = {
     return apiRequest<{ message: string }>('/users.php?action=change-password', {
       method: 'POST',
       body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
+    });
+  },
+
+  transferPrincipal: async (details: { name: string; email: string; mobile: string }) => {
+    return apiRequest<{ message: string; setupUrl: string; emailSent: boolean }>('/users.php?action=transfer-principal', {
+      method: 'POST',
+      body: JSON.stringify(details),
+    });
+  },
+
+  assignTemporaryPrincipal: async (staffId: string | number) => {
+    return apiRequest<{ message: string; staff: any }>('/users.php?action=assign-temporary-principal', {
+      method: 'POST',
+      body: JSON.stringify({ staffId }),
+    });
+  },
+
+  getPrincipalInvite: async (token: string) => {
+    return apiRequest<{ token: string; new_principal_name: string; new_principal_email: string; new_principal_mobile: string; transfer_mode: string; status: string; expires_at: string }>(
+      `/users.php?action=principal-invite&token=${encodeURIComponent(token)}`
+    );
+  },
+
+  completePrincipalInvite: async (data: { token: string; password: string; confirmPassword: string; avatarFile?: File }) => {
+    const { avatarFile, ...payload } = data;
+
+    if (avatarFile) {
+      const formData = new FormData();
+      Object.entries(payload).forEach(([key, value]) => {
+        formData.append(key, String(value));
+      });
+      formData.append('avatarFile', avatarFile);
+
+      return apiRequest<{ message: string; email: string }>('/users.php?action=principal-invite', {
+        method: 'POST',
+        body: formData,
+      });
+    }
+
+    return apiRequest<{ message: string; email: string }>('/users.php?action=principal-invite', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   },
 };

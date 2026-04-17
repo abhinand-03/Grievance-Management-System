@@ -302,7 +302,15 @@ export default function Settings() {
                 <p className="font-medium mb-2">Account Information</p>
                 <div className="space-y-1">
                   <p>Email: {user?.email || 'Not available'}</p>
-                  <p>Role: {user?.role === 'admin' ? 'Principal' : user?.role === 'staff' ? 'Staff' : 'Student'}</p>
+                  <p>
+                    Role: {user?.role === 'admin'
+                      ? user.principalType === 'temporary'
+                        ? 'Temporary Principal'
+                        : 'Principal'
+                      : user?.role === 'staff'
+                        ? 'Staff'
+                        : 'Student'}
+                  </p>
                   <p>Department: {user?.department || 'Not assigned'}</p>
                 </div>
               </div>

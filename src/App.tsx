@@ -14,6 +14,7 @@ import StaffApprovals from "./pages/StaffApprovals";
 import Profile from "./pages/Profile";
 import Announcements from "./pages/Announcements";
 import Settings from "./pages/Settings";
+import PrincipalSetup from "./pages/PrincipalSetup";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -65,6 +66,7 @@ function AppRoutes() {
       <Route path="/analytics" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/users" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+      <Route path="/principal-setup" element={<PrincipalSetup />} />
       <Route path="/help" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>

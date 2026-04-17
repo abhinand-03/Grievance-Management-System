@@ -5,6 +5,15 @@ import { DashboardLayout } from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { usersApi } from '@/services/api';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -19,7 +28,7 @@ import {
   CheckCircle2,
   XCircle,
   Users,
-  AlertTriangle,
+  ArrowRightLeft,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -53,6 +62,19 @@ export default function StaffApprovals() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'pending' | 'all'>('pending');
+  const [transferMode, setTransferMode] = useState<'permanent' | 'temporary'>('permanent');
+  const [newPrincipalName, setNewPrincipalName] = useState('');
+  const [newPrincipalEmail, setNewPrincipalEmail] = useState('');
+  const [newPrincipalMobile, setNewPrincipalMobile] = useState('');
+  const [temporaryStaffId, setTemporaryStaffId] = useState('');
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+  const [transferringPrincipal, setTransferringPrincipal] = useState(false);
+  const [inviteSetupUrl, setInviteSetupUrl] = useState('');
+
+  const approvedStaff = allStaff
+    .filter((staff) => Boolean(staff.is_approved))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const selectedTemporaryStaff = approvedStaff.find((staff) => String(staff.id) === temporaryStaffId);
 
   // Redirect non-admin users
   useEffect(() => {
@@ -113,6 +135,47 @@ export default function StaffApprovals() {
     } catch (error) {
       console.error('Failed to reject staff:', error);
       toast.error('Failed to reject staff');
+    }
+  };
+
+  const handlePrincipalAssignment = async () => {
+    setTransferringPrincipal(true);
+    try {
+      if (transferMode === 'permanent') {
+        if (!newPrincipalName || !newPrincipalEmail || !newPrincipalMobile) {
+          toast.error('Name, email, and mobile number are required');
+          return;
+        }
+
+        const response = await usersApi.transferPrincipal({
+          name: newPrincipalName,
+          email: newPrincipalEmail,
+          mobile: newPrincipalMobile,
+        });
+        setInviteSetupUrl(response.setupUrl || '');
+        toast.success('Principal invite sent', {
+          description: response.emailSent
+            ? 'The setup link was emailed to the new principal.'
+            : 'The invite was created. Email delivery was not confirmed.',
+        });
+      } else {
+        if (!temporaryStaffId) {
+          toast.error('Please choose a staff member for temporary principal access');
+          return;
+        }
+
+        await usersApi.assignTemporaryPrincipal(temporaryStaffId);
+        toast.success('Temporary principal assigned successfully');
+      }
+
+      setTransferDialogOpen(false);
+      fetchData();
+    } catch (error: any) {
+      toast.error('Failed to process principal assignment', {
+        description: error.message || 'Please try again.',
+      });
+    } finally {
+      setTransferringPrincipal(false);
     }
   };
 
@@ -183,6 +246,140 @@ export default function StaffApprovals() {
             </CardContent>
           </Card>
         </div>
+
+        <Card className="shadow-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ArrowRightLeft className="h-5 w-5" />
+              Principal Assignment
+            </CardTitle>
+            <CardDescription>
+              Invite a new principal or assign an approved staff member as temporary principal.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="transferMode">Assignment Type</Label>
+              <Select value={transferMode} onValueChange={(value) => setTransferMode(value as 'permanent' | 'temporary')}>
+                <SelectTrigger id="transferMode" className="max-w-md">
+                  <SelectValue placeholder="Select assignment type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="permanent">Permanent principal invite</SelectItem>
+                  <SelectItem value="temporary">Temporary principal from staff</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {transferMode === 'permanent' ? (
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="principalName">Principal Name</Label>
+                  <Input
+                    id="principalName"
+                    placeholder="Enter name"
+                    value={newPrincipalName}
+                    onChange={(e) => setNewPrincipalName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="principalEmail">Principal Email</Label>
+                  <Input
+                    id="principalEmail"
+                    type="email"
+                    placeholder="Enter email"
+                    value={newPrincipalEmail}
+                    onChange={(e) => setNewPrincipalEmail(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="principalMobile">Mobile Number</Label>
+                  <Input
+                    id="principalMobile"
+                    placeholder="Enter mobile number"
+                    value={newPrincipalMobile}
+                    onChange={(e) => setNewPrincipalMobile(e.target.value)}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2 max-w-md">
+                <Label htmlFor="temporaryStaff">Select Approved Staff</Label>
+                <Select value={temporaryStaffId} onValueChange={setTemporaryStaffId}>
+                  <SelectTrigger id="temporaryStaff">
+                    <SelectValue placeholder="Choose a staff member" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {approvedStaff.length === 0 ? (
+                      <SelectItem value="staff-none" disabled>
+                        No approved staff available
+                      </SelectItem>
+                    ) : (
+                      approvedStaff.map((member) => (
+                        <SelectItem key={member.id} value={String(member.id)}>
+                          {member.name} {member.department ? `(${member.department})` : ''}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                {selectedTemporaryStaff && (
+                  <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm space-y-1">
+                    <p className="font-medium">Temporary Principal</p>
+                    <p>Name: {selectedTemporaryStaff.name}</p>
+                    <p>Email: {selectedTemporaryStaff.email}</p>
+                    <p>Department: {selectedTemporaryStaff.department || 'Not available'}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {inviteSetupUrl && transferMode === 'permanent' && (
+              <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm break-all">
+                <p className="font-medium mb-1">Invite link</p>
+                <p className="text-muted-foreground">{inviteSetupUrl}</p>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-sm text-muted-foreground">
+                {transferMode === 'permanent'
+                  ? 'Current principal access remains active until the new principal completes setup and logs in.'
+                  : 'The selected staff account will be promoted as temporary principal.'}
+              </p>
+
+              <AlertDialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={transferringPrincipal}
+                  onClick={() => setTransferDialogOpen(true)}
+                >
+                  <Users className="h-4 w-4 mr-2" />
+                  {transferMode === 'permanent' ? 'Send Setup Link' : 'Assign Temporary Principal'}
+                </Button>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      {transferMode === 'permanent' ? 'Send principal setup link?' : 'Assign temporary principal?'}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {transferMode === 'permanent'
+                        ? `A setup link will be sent to ${newPrincipalEmail || 'the provided email address'}.`
+                        : `You are about to grant temporary principal access to ${selectedTemporaryStaff?.name || 'the selected staff member'}.`}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={transferringPrincipal}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handlePrincipalAssignment} disabled={transferringPrincipal}>
+                      {transferringPrincipal ? 'Processing...' : 'Confirm'}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Tabs */}
         <div className="flex gap-2 border-b border-border pb-2">
