@@ -48,6 +48,7 @@ function getGrievances() {
     $db = getDB();
     
     $status = $_GET['status'] ?? null;
+    $adminView = $_GET['adminView'] ?? null;
     $category = $_GET['category'] ?? null;
     $priority = $_GET['priority'] ?? null;
     $page = (int)($_GET['page'] ?? 1);
@@ -62,8 +63,13 @@ function getGrievances() {
         $where[] = "g.student_id = ?";
         $params[] = $authUser['id'];
     } else if ($authUser['role'] === 'admin') {
-        // Admin (Principal) sees escalated grievances and those they've already processed
-        $where[] = "(g.status = 'escalated' OR g.status IN ('solved', 'considered', 'denied'))";
+        if ($adminView === 'faculty_resolved') {
+            // Principal-only view for grievances resolved by faculty without escalation.
+            $where[] = "g.status = 'resolved' AND g.escalated_at IS NULL";
+        } else {
+            // Admin (Principal) sees escalated grievances and those they've already processed.
+            $where[] = "(g.status = 'escalated' OR g.status IN ('solved', 'considered', 'denied'))";
+        }
     } else if ($authUser['role'] === 'staff') {
         // Staff sees ONLY grievances assigned to them or matching their specific department/category
         $staffDept = $authUser['department'] ?? '';

@@ -26,7 +26,7 @@ export default function GrievanceList() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<GrievanceStatus | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<GrievanceStatus | 'all' | 'faculty_resolved'>('all');
   const [categoryFilter, setCategoryFilter] = useState<GrievanceCategory | 'all'>('all');
   const [grievances, setGrievances] = useState<Grievance[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,7 +37,11 @@ export default function GrievanceList() {
       if (showLoading) setLoading(true);
       setRefreshing(true);
       const params: Record<string, string> = {};
-      if (statusFilter !== 'all') params.status = statusFilter;
+      if (statusFilter === 'faculty_resolved') {
+        params.adminView = 'faculty_resolved';
+      } else if (statusFilter !== 'all') {
+        params.status = statusFilter;
+      }
       if (categoryFilter !== 'all') params.category = categoryFilter;
       const response = await grievancesApi.getAll(params);
       // Transform API response from snake_case to camelCase
@@ -98,6 +102,15 @@ export default function GrievanceList() {
   });
 
   const isStudent = user?.role === 'student';
+  const isPrincipal = user?.role === 'admin';
+
+  const principalStatusOptions: { value: GrievanceStatus | 'faculty_resolved'; label: string }[] = [
+    { value: 'escalated', label: STATUS_LABELS.escalated },
+    { value: 'solved', label: STATUS_LABELS.solved },
+    { value: 'considered', label: STATUS_LABELS.considered },
+    { value: 'denied', label: STATUS_LABELS.denied },
+    { value: 'faculty_resolved', label: 'Solved by Faculty (Not Forwarded)' },
+  ];
 
   return (
     <DashboardLayout>
@@ -152,11 +165,17 @@ export default function GrievanceList() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                {(Object.keys(STATUS_LABELS) as GrievanceStatus[]).map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {STATUS_LABELS[status]}
-                  </SelectItem>
-                ))}
+                {isPrincipal
+                  ? principalStatusOptions.map((statusOption) => (
+                      <SelectItem key={statusOption.value} value={statusOption.value}>
+                        {statusOption.label}
+                      </SelectItem>
+                    ))
+                  : (Object.keys(STATUS_LABELS) as GrievanceStatus[]).map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {STATUS_LABELS[status]}
+                      </SelectItem>
+                    ))}
               </SelectContent>
             </Select>
 

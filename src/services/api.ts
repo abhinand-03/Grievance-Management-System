@@ -96,6 +96,7 @@ export const authApi = {
 export const grievancesApi = {
   getAll: async (params?: {
     status?: string;
+    adminView?: string;
     category?: string;
     page?: number;
     limit?: number;
