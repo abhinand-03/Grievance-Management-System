@@ -51,6 +51,35 @@ switch ($method) {
         jsonResponse(['error' => 'Method not allowed'], 405);
 }
 
+function normalizeTargetAudience($audienceInput) {
+    if (empty($audienceInput)) {
+        return 'all';
+    }
+    if (is_array($audienceInput)) {
+        if (in_array('all', $audienceInput) || count($audienceInput) === 0) {
+            return 'all';
+        }
+        $hasStudents = in_array('students', $audienceInput);
+        $hasStaff = in_array('staff', $audienceInput) || in_array('faculty', $audienceInput);
+        if ($hasStudents && $hasStaff) {
+            return 'both';
+        } else if ($hasStudents) {
+            return 'students';
+        } else if ($hasStaff) {
+            return 'staff';
+        }
+        return 'all';
+    }
+    if (is_string($audienceInput)) {
+        $clean = strtolower(trim($audienceInput));
+        if ($clean === 'faculty') return 'staff';
+        if (in_array($clean, ['all', 'students', 'staff', 'both'])) {
+            return $clean;
+        }
+    }
+    return 'all';
+}
+
 function getAnnouncements() {
     $authUser = requireAuth();
     $db = getDB();
@@ -65,15 +94,17 @@ function getAnnouncements() {
     
     if ($userRole === 'student') {
         // Students see announcements targeted to 'all', 'students', or 'both'
-        $where[] = "a.target_audience IN ('all', 'students', 'both')";
+        $where[] = "(a.target_audience IN ('all', 'students', 'both') OR LOCATE('students', a.target_audience) > 0)";
         // Filter by department - show if no department specified OR user's department is in the list
-        $where[] = "(a.target_department IS NULL OR a.target_department = '' OR FIND_IN_SET(?, a.target_department) > 0)";
+        $where[] = "(a.target_department IS NULL OR a.target_department = '' OR FIND_IN_SET(?, a.target_department) > 0 OR LOCATE(?, a.target_department) > 0)";
+        $params[] = $userDept;
         $params[] = $userDept;
     } else if ($userRole === 'staff') {
-        // Staff sees announcements targeted to 'staff', 'all', or 'both' - NOT student-only
-        $where[] = "a.target_audience IN ('all', 'staff', 'both')";
+        // Staff sees announcements targeted to 'staff', 'all', or 'both'
+        $where[] = "(a.target_audience IN ('all', 'staff', 'both') OR LOCATE('staff', a.target_audience) > 0)";
         // Filter by department - show if no department specified OR user's department is in the list
-        $where[] = "(a.target_department IS NULL OR a.target_department = '' OR FIND_IN_SET(?, a.target_department) > 0)";
+        $where[] = "(a.target_department IS NULL OR a.target_department = '' OR FIND_IN_SET(?, a.target_department) > 0 OR LOCATE(?, a.target_department) > 0)";
+        $params[] = $userDept;
         $params[] = $userDept;
     } else if ($userRole === 'admin') {
         // Admin sees all announcements - no audience filter
@@ -130,24 +161,14 @@ function createAnnouncement() {
         jsonResponse(['error' => 'Unauthorized'], 403);
     }
     
-    // Staff can only publish to students
-    if ($authUser['role'] === 'staff' && isset($data['targetAudience']) && $data['targetAudience'] === 'staff') {
-        jsonResponse(['error' => 'Staff can only publish announcements to students'], 403);
-    }
-    
     $title = $data['title'] ?? '';
     $content = $data['content'] ?? '';
-    $targetAudience = $data['targetAudience'] ?? 'all';
+    $targetAudience = normalizeTargetAudience($data['targetAudience'] ?? null);
     $targetDepartment = $data['targetDepartment'] ?? null;
     $priority = $data['priority'] ?? 'normal';
     
     if (empty($title) || empty($content)) {
         jsonResponse(['error' => 'Title and content are required'], 400);
-    }
-    
-    // Staff can only publish to students or their department
-    if ($authUser['role'] === 'staff') {
-        $targetAudience = 'students';
     }
     
     $stmt = $db->prepare("INSERT INTO announcements (title, content, publisher_id, publisher_type, publisher_name, target_audience, target_department, priority) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
@@ -191,7 +212,7 @@ function updateAnnouncement($id) {
     
     $title = $data['title'] ?? $announcement['title'];
     $content = $data['content'] ?? $announcement['content'];
-    $targetAudience = $data['targetAudience'] ?? $announcement['target_audience'];
+    $targetAudience = isset($data['targetAudience']) ? normalizeTargetAudience($data['targetAudience']) : $announcement['target_audience'];
     $targetDepartment = $data['targetDepartment'] ?? $announcement['target_department'];
     $priority = $data['priority'] ?? $announcement['priority'];
     $isActive = isset($data['isActive']) ? ($data['isActive'] ? 1 : 0) : $announcement['is_active'];

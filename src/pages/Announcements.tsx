@@ -102,7 +102,8 @@ export default function Announcements() {
   // Form state
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [targetAudience, setTargetAudience] = useState<'all' | 'students' | 'staff' | 'both'>('all');
+  const [targetAudience, setTargetAudience] = useState<string[]>([]);
+  const [audiencePopoverOpen, setAudiencePopoverOpen] = useState(false);
   const [targetDepartments, setTargetDepartments] = useState<string[]>([]);
   const [deptPopoverOpen, setDeptPopoverOpen] = useState(false);
   const [clearingAll, setClearingAll] = useState(false);
@@ -142,7 +143,7 @@ export default function Announcements() {
   const resetForm = () => {
     setTitle('');
     setContent('');
-    setTargetAudience(isAdmin ? 'all' : 'students');
+    setTargetAudience([]);
     setTargetDepartments([]);
   };
 
@@ -158,10 +159,16 @@ export default function Announcements() {
 
     setSubmitting(true);
     try {
+      const audiencePayload = targetAudience.length === 0
+        ? 'all'
+        : targetAudience.includes('students') && targetAudience.includes('staff')
+        ? 'both'
+        : targetAudience[0];
+
       await announcementsApi.create({
         title: title.trim(),
         content: content.trim(),
-        targetAudience: user?.role === 'staff' ? 'students' : targetAudience,
+        targetAudience: audiencePayload,
         targetDepartment: targetDepartments.length > 0 ? targetDepartments.join(',') : undefined,
       });
       
@@ -331,39 +338,6 @@ export default function Announcements() {
                         onChange={(e) => setContent(e.target.value)}
                       />
                     </div>
-                    {isAdmin && (
-                      <div className="space-y-2">
-                        <Label htmlFor="target">Target Audience</Label>
-                        <Select 
-                          value={targetAudience} 
-                          onValueChange={(value: any) => setTargetAudience(value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select audience" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">
-                              <div className="flex items-center gap-2">
-                                <Users className="h-4 w-4" />
-                                Everyone
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="students">
-                              <div className="flex items-center gap-2">
-                                <GraduationCap className="h-4 w-4" />
-                                Students Only
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="staff">
-                              <div className="flex items-center gap-2">
-                                <Briefcase className="h-4 w-4" />
-                                Staff Only
-                              </div>
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
                     <div className="space-y-2">
                       <Label>Target Departments</Label>
                       <Popover open={deptPopoverOpen} onOpenChange={setDeptPopoverOpen}>
@@ -448,6 +422,124 @@ export default function Announcements() {
                         </PopoverContent>
                       </Popover>
                     </div>
+
+                    {canPublish && (
+                      <div className="space-y-2">
+                        <Label>Target Audience</Label>
+                        <Popover open={audiencePopoverOpen} onOpenChange={setAudiencePopoverOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="w-full justify-between font-normal"
+                            >
+                              <span className="flex items-center gap-2">
+                                <Users className="h-4 w-4" />
+                                {targetAudience.length === 0
+                                  ? 'All Audiences (Students & Faculty)'
+                                  : targetAudience.length === 2
+                                  ? 'All Audiences Selected'
+                                  : targetAudience.includes('students')
+                                  ? 'Students'
+                                  : 'Faculty / Staff'}
+                              </span>
+                              <ChevronDown className="h-4 w-4 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[300px] p-0" align="start">
+                            <div className="p-2 border-b">
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id="select-all-audience"
+                                  checked={targetAudience.length === 2}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setTargetAudience(['students', 'staff']);
+                                    } else {
+                                      setTargetAudience([]);
+                                    }
+                                  }}
+                                />
+                                <label
+                                  htmlFor="select-all-audience"
+                                  className="text-sm font-medium cursor-pointer flex-1"
+                                >
+                                  Select All (Students & Faculty)
+                                </label>
+                              </div>
+                            </div>
+                            <div className="p-2 space-y-2">
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id="aud-students"
+                                  checked={targetAudience.includes('students')}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setTargetAudience([...targetAudience.filter(a => a !== 'students'), 'students']);
+                                    } else {
+                                      setTargetAudience(targetAudience.filter(a => a !== 'students'));
+                                    }
+                                  }}
+                                />
+                                <label htmlFor="aud-students" className="text-sm cursor-pointer flex-1 flex items-center gap-2">
+                                  <GraduationCap className="h-4 w-4 text-blue-600" />
+                                  Students
+                                </label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id="aud-staff"
+                                  checked={targetAudience.includes('staff')}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setTargetAudience([...targetAudience.filter(a => a !== 'staff'), 'staff']);
+                                    } else {
+                                      setTargetAudience(targetAudience.filter(a => a !== 'staff'));
+                                    }
+                                  }}
+                                />
+                                <label htmlFor="aud-staff" className="text-sm cursor-pointer flex-1 flex items-center gap-2">
+                                  <Briefcase className="h-4 w-4 text-purple-600" />
+                                  Faculty / Staff
+                                </label>
+                              </div>
+                            </div>
+                            <div className="p-2 border-t flex items-center justify-between gap-2">
+                              <p className="text-xs text-muted-foreground">
+                                {targetAudience.length === 0
+                                  ? 'No selection = Both Students & Faculty receive this'
+                                  : 'Only selected target groups will receive this announcement'}
+                              </p>
+                              {targetAudience.length > 0 && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs"
+                                  onClick={() => setTargetAudience([])}
+                                >
+                                  Clear
+                                </Button>
+                              )}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                        {targetAudience.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {targetAudience.includes('students') && (
+                              <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
+                                <GraduationCap className="h-3 w-3 mr-1" />
+                                Students
+                              </Badge>
+                            )}
+                            {targetAudience.includes('staff') && (
+                              <Badge variant="secondary" className="bg-purple-50 text-purple-700 border-purple-200">
+                                <Briefcase className="h-3 w-3 mr-1" />
+                                Faculty / Staff
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setDialogOpen(false)}>

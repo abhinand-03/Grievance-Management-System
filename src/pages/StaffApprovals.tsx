@@ -29,6 +29,7 @@ import {
   XCircle,
   Users,
   ArrowRightLeft,
+  AlertCircle,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -51,6 +52,7 @@ interface PendingStaff {
   employee_id: string;
   designation: string;
   is_approved: number;
+  is_suspended?: number | boolean;
   created_at: string;
 }
 
@@ -135,6 +137,36 @@ export default function StaffApprovals() {
     } catch (error) {
       console.error('Failed to reject staff:', error);
       toast.error('Failed to reject staff');
+    }
+  };
+
+  const handleSuspend = async (id: number, name: string) => {
+    try {
+      await usersApi.suspendStaff(id);
+      toast.success(`${name} has been suspended`, {
+        description: 'They will be unable to log in until reactivated.',
+      });
+      fetchData();
+    } catch (error: any) {
+      console.error('Failed to suspend staff:', error);
+      toast.error('Failed to suspend staff', {
+        description: error.message || 'Please try again.',
+      });
+    }
+  };
+
+  const handleUnsuspend = async (id: number, name: string) => {
+    try {
+      await usersApi.unsuspendStaff(id);
+      toast.success(`${name} has been unsuspended`, {
+        description: 'They can now log in to their account again.',
+      });
+      fetchData();
+    } catch (error: any) {
+      console.error('Failed to unsuspend staff:', error);
+      toast.error('Failed to unsuspend staff', {
+        description: error.message || 'Please try again.',
+      });
     }
   };
 
@@ -539,7 +571,12 @@ export default function StaffApprovals() {
                             <td className="p-4 text-sm">{staff.department}</td>
                             <td className="p-4 text-sm">{staff.employee_id}</td>
                             <td className="p-4">
-                              {staff.is_approved ? (
+                              {Boolean(staff.is_suspended) ? (
+                                <Badge variant="destructive" className="bg-red-100 text-red-700 border-red-200">
+                                  <AlertCircle className="h-3 w-3 mr-1" />
+                                  Suspended
+                                </Badge>
+                              ) : staff.is_approved ? (
                                 <Badge className="bg-green-100 text-green-700 border-green-200">
                                   <CheckCircle2 className="h-3 w-3 mr-1" />
                                   Approved
@@ -552,23 +589,77 @@ export default function StaffApprovals() {
                               )}
                             </td>
                             <td className="p-4">
-                              {!staff.is_approved && (
-                                <div className="flex gap-2">
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handleApprove(staff.id, staff.name)}
-                                  >
-                                    Approve
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="destructive"
-                                    onClick={() => handleReject(staff.id, staff.name)}
-                                  >
-                                    Reject
-                                  </Button>
-                                </div>
-                              )}
+                              <div className="flex items-center gap-2">
+                                {!staff.is_approved ? (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleApprove(staff.id, staff.name)}
+                                    >
+                                      Approve
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      onClick={() => handleReject(staff.id, staff.name)}
+                                    >
+                                      Reject
+                                    </Button>
+                                  </>
+                                ) : Boolean(staff.is_suspended) ? (
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button size="sm" variant="outline" className="text-green-700 border-green-300 hover:bg-green-50 hover:text-green-800">
+                                        <UserCheck className="h-3.5 w-3.5 mr-1" />
+                                        Unsuspend
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Unsuspend Staff Member?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Are you sure you want to reactivate {staff.name}? They will be able to log in to their account again immediately.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          className="bg-green-600 text-white hover:bg-green-700"
+                                          onClick={() => handleUnsuspend(staff.id, staff.name)}
+                                        >
+                                          Unsuspend Staff
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                ) : (
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button size="sm" variant="destructive" className="bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 border border-red-200 shadow-none">
+                                        <UserX className="h-3.5 w-3.5 mr-1" />
+                                        Suspend
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Suspend Staff Member?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Are you sure you want to suspend {staff.name}? They will be unable to log in until reactivated.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                          onClick={() => handleSuspend(staff.id, staff.name)}
+                                        >
+                                          Suspend Staff
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))}

@@ -71,6 +71,10 @@ function handleLogin() {
             if (!$user['is_approved']) {
                 jsonResponse(['error' => 'Your account is pending approval by the Principal. Please wait for approval.'], 403);
             }
+            // Check if staff account is suspended
+            if (!empty($user['is_suspended'])) {
+                jsonResponse(['error' => 'Your account has been suspended. Please contact the administration.'], 403);
+            }
         }
     } else if ($role === 'admin') {
         $stmt = $db->prepare("SELECT * FROM admins WHERE email = ?");

@@ -54,11 +54,15 @@ switch ($method) {
             approveStaff($id);
         } else if ($action === 'reject') {
             rejectStaff($id);
+        } else if ($action === 'suspend') {
+            suspendStaff($id);
+        } else if ($action === 'unsuspend') {
+            unsuspendStaff($id);
         } else {
             updateUser($id);
         }
         break;
-        
+
     case 'DELETE':
         if (!$id) {
             jsonResponse(['error' => 'User ID required'], 400);
@@ -68,6 +72,20 @@ switch ($method) {
         
     default:
         jsonResponse(['error' => 'Method not allowed'], 405);
+}
+
+/**
+ * Helper to ensure is_suspended column exists in staff table
+ */
+function ensureStaffSuspendedColumnExists($db) {
+    try {
+        $stmt = $db->query("SHOW COLUMNS FROM staff LIKE 'is_suspended'");
+        if (!$stmt->fetch()) {
+            $db->exec("ALTER TABLE staff ADD COLUMN is_suspended TINYINT(1) DEFAULT 0");
+        }
+    } catch (Exception $e) {
+        error_log("Failed to ensure is_suspended column: " . $e->getMessage());
+    }
 }
 
 /**
@@ -82,8 +100,9 @@ function getPendingStaff() {
     }
     
     $db = getDB();
+    ensureStaffSuspendedColumnExists($db);
     
-    $stmt = $db->prepare("SELECT id, email, name, department, mobile, employee_id, designation, is_approved, created_at 
+    $stmt = $db->prepare("SELECT id, email, name, department, mobile, employee_id, designation, is_approved, is_suspended, created_at 
                           FROM staff 
                           WHERE is_approved = 0 
                           ORDER BY created_at ASC");
@@ -108,8 +127,9 @@ function getStaffList() {
     }
     
     $db = getDB();
+    ensureStaffSuspendedColumnExists($db);
     
-    $stmt = $db->prepare("SELECT id, email, name, department, mobile, employee_id, designation, is_approved, created_at 
+    $stmt = $db->prepare("SELECT id, email, name, department, mobile, employee_id, designation, is_approved, is_suspended, created_at 
                           FROM staff 
                           ORDER BY is_approved ASC, created_at DESC");
     $stmt->execute();
@@ -194,6 +214,86 @@ function rejectStaff($id) {
             'id' => $staff['id'],
             'name' => $staff['name'],
             'email' => $staff['email']
+        ]
+    ]);
+}
+
+/**
+ * Suspend a staff account
+ */
+function suspendStaff($id) {
+    $authUser = requireAuth();
+    
+    // Only admin can suspend staff
+    if ($authUser['role'] !== 'admin') {
+        jsonResponse(['error' => 'Unauthorized - Only Principal can suspend staff accounts'], 403);
+    }
+    
+    $db = getDB();
+    ensureStaffSuspendedColumnExists($db);
+    
+    $stmt = $db->prepare("SELECT * FROM staff WHERE id = ?");
+    $stmt->execute([$id]);
+    $staff = $stmt->fetch();
+    
+    if (!$staff) {
+        jsonResponse(['error' => 'Staff not found'], 404);
+    }
+    
+    if (!empty($staff['is_suspended'])) {
+        jsonResponse(['error' => 'Staff is already suspended'], 400);
+    }
+    
+    $stmt = $db->prepare("UPDATE staff SET is_suspended = 1 WHERE id = ?");
+    $stmt->execute([$id]);
+    
+    jsonResponse([
+        'message' => 'Staff member suspended successfully',
+        'staff' => [
+            'id' => $staff['id'],
+            'name' => $staff['name'],
+            'email' => $staff['email'],
+            'is_suspended' => 1
+        ]
+    ]);
+}
+
+/**
+ * Unsuspend a staff account
+ */
+function unsuspendStaff($id) {
+    $authUser = requireAuth();
+    
+    // Only admin can unsuspend staff
+    if ($authUser['role'] !== 'admin') {
+        jsonResponse(['error' => 'Unauthorized - Only Principal can unsuspend staff accounts'], 403);
+    }
+    
+    $db = getDB();
+    ensureStaffSuspendedColumnExists($db);
+    
+    $stmt = $db->prepare("SELECT * FROM staff WHERE id = ?");
+    $stmt->execute([$id]);
+    $staff = $stmt->fetch();
+    
+    if (!$staff) {
+        jsonResponse(['error' => 'Staff not found'], 404);
+    }
+    
+    if (empty($staff['is_suspended'])) {
+        jsonResponse(['error' => 'Staff is not suspended'], 400);
+    }
+    
+    $stmt = $db->prepare("UPDATE staff SET is_suspended = 0 WHERE id = ?");
+    $stmt->execute([$id]);
+    
+    jsonResponse([
+        'message' => 'Staff member unsuspended successfully',
+        'staff' => [
+            'id' => $staff['id'],
+            'name' => $staff['name'],
+            'email' => $staff['email'],
+            'is_suspended' => 0
         ]
     ]);
 }

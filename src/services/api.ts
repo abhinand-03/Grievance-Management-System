@@ -291,6 +291,18 @@ export const usersApi = {
     });
   },
 
+  suspendStaff: async (id: string | number) => {
+    return apiRequest<{ message: string; staff: any }>(`/users.php?id=${id}&action=suspend`, {
+      method: 'PUT',
+    });
+  },
+
+  unsuspendStaff: async (id: string | number) => {
+    return apiRequest<{ message: string; staff: any }>(`/users.php?id=${id}&action=unsuspend`, {
+      method: 'PUT',
+    });
+  },
+
   deleteStaff: async (id: string | number) => {
     return apiRequest<{ message: string }>(`/users.php?id=${id}`, {
       method: 'DELETE',
