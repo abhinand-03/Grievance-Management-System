@@ -20,7 +20,7 @@ The platform streamlines complaint submission, progress tracking, department-lev
 
 ---
 
-## Demo
+## 🎥 Demo
 
 Here is a quick walkthrough of the application workflow across all user roles:
 
@@ -38,7 +38,31 @@ Here is a quick walkthrough of the application workflow across all user roles:
 +-----------------------------------------------------------------------------------+
 ```
 
-> **Note**: A full screen capture video demonstrating (1) Student submitting a complaint, (2) Faculty reviewing and commenting, (3) Principal managing escalations and staff approvals, and (4) live status updates is available in the repository assets.
+---
+
+## 📸 Screenshots
+
+### Login Portal
+
+*Multi-role login portal with Student, Staff, and Admin tabs — role switches in-place without navigating away.*
+
+| Student Login | Staff Login | Admin / Principal Login |
+|:---:|:---:|:---:|
+| ![Student Login](screenshots/student-login.png) | ![Staff Login](screenshots/staff-login.png) | ![Admin Login](screenshots/admin-login.png) |
+
+---
+
+### Student Portal
+
+*Students can track, submit, and browse grievances and announcements from a unified dashboard.*
+
+| Student Dashboard | Submit New Grievance |
+|:---:|:---:|
+| ![Student Dashboard](screenshots/student-dashboard.png) | ![Submit Grievance](screenshots/grievance-submission.png) |
+
+| My Grievances (Status Tracking) | Campus Announcements |
+|:---:|:---:|
+| ![My Grievances](screenshots/my-grievances.png) | ![Announcements](screenshots/announcements.png) |
 
 ---
 
