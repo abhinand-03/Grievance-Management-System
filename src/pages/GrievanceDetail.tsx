@@ -21,7 +21,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
-import { grievancesApi, commentsApi } from '@/services/api';
+import { grievancesApi, commentsApi, escalationsApi } from '@/services/api';
 import { Grievance } from '@/types/grievance';
 import { 
   CATEGORY_LABELS, 
@@ -46,6 +46,7 @@ import {
   EyeOff,
   AlertTriangle,
   RefreshCw,
+  ArrowUpCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -59,6 +60,10 @@ export default function GrievanceDetail() {
   const [grievance, setGrievance] = useState<Grievance | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // Escalation dialog state (staff only)
+  const [escalateDialogOpen, setEscalateDialogOpen] = useState(false);
+  const [escalateReason, setEscalateReason] = useState('');
+  const [escalating, setEscalating] = useState(false);
 
   const transformGrievanceData = (data: any): Grievance => ({
     ...data,
@@ -199,6 +204,26 @@ export default function GrievanceDetail() {
     }
   };
 
+  // Handle manual escalation to Principal (staff only)
+  const handleEscalate = async () => {
+    if (!escalateReason.trim() || !id) {
+      toast.error('Please enter an escalation reason');
+      return;
+    }
+    try {
+      setEscalating(true);
+      await escalationsApi.manualEscalate(id, escalateReason.trim());
+      toast.success('Grievance escalated to Principal successfully');
+      setEscalateDialogOpen(false);
+      setEscalateReason('');
+      await fetchGrievance(false);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to escalate grievance');
+    } finally {
+      setEscalating(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -264,7 +289,7 @@ export default function GrievanceDetail() {
                   Take action on this grievance
                 </div>
               )}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <Select value={newStatus} onValueChange={(v) => setNewStatus(v as GrievanceStatus)}>
                   <SelectTrigger className="w-[200px]">
                     <SelectValue placeholder={user?.role === 'admin' ? "Principal Decision" : "Select Action"} />
@@ -290,6 +315,23 @@ export default function GrievanceDetail() {
                 <Button onClick={handleUpdateStatus} disabled={!newStatus}>
                   {user?.role === 'admin' ? 'Submit Decision' : 'Submit'}
                 </Button>
+
+                {/* Escalate to Principal — only for staff on non-escalated grievances */}
+                {user?.role === 'staff' &&
+                  !(grievance as any).is_escalated &&
+                  !['resolved', 'solved', 'considered', 'denied', 'rejected', 'escalated'].includes(grievance.status) && (
+                  <Button
+                    variant="outline"
+                    className="border-orange-300 text-orange-700 hover:bg-orange-50"
+                    onClick={() => {
+                      setEscalateReason('');
+                      setEscalateDialogOpen(true);
+                    }}
+                  >
+                    <ArrowUpCircle className="h-4 w-4 mr-2" />
+                    Escalate to Principal
+                  </Button>
+                )}
               </div>
             </div>
           )}
@@ -538,6 +580,49 @@ export default function GrievanceDetail() {
           </div>
         </div>
       </div>
+
+      {/* ── Escalate to Principal dialog (staff only) ── */}
+      {escalateDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 backdrop-blur-sm">
+          <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-md mx-4 p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-500" />
+              <h2 className="text-lg font-semibold">Escalate to Principal</h2>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              This will forward{' '}
+              <span className="font-mono font-semibold">{grievance?.ticketNumber}</span>{' '}
+              to the Principal for a final decision. Please provide a clear reason.
+            </p>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Escalation Reason *</label>
+              <Textarea
+                placeholder="Explain why this grievance needs the Principal's attention…"
+                rows={4}
+                value={escalateReason}
+                onChange={(e) => setEscalateReason(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setEscalateDialogOpen(false)}
+                disabled={escalating}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="bg-orange-600 hover:bg-orange-700 text-white"
+                onClick={handleEscalate}
+                disabled={!escalateReason.trim() || escalating}
+              >
+                <ArrowUpCircle className="h-4 w-4 mr-2" />
+                {escalating ? 'Escalating…' : 'Confirm Escalation'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

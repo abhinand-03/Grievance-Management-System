@@ -15,6 +15,7 @@ import Profile from "./pages/Profile";
 import Announcements from "./pages/Announcements";
 import Settings from "./pages/Settings";
 import PrincipalSetup from "./pages/PrincipalSetup";
+import EscalationPage from "./pages/EscalationPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -59,7 +60,7 @@ function AppRoutes() {
       <Route path="/grievances" element={<ProtectedRoute><GrievanceList /></ProtectedRoute>} />
       <Route path="/grievance/new" element={<ProtectedRoute><NewGrievance /></ProtectedRoute>} />
       <Route path="/grievance/:id" element={<ProtectedRoute><GrievanceDetail /></ProtectedRoute>} />
-      <Route path="/escalations" element={<ProtectedRoute><GrievanceList /></ProtectedRoute>} />
+      <Route path="/escalations" element={<ProtectedRoute><EscalationPage /></ProtectedRoute>} />
       <Route path="/staff-approvals" element={<ProtectedRoute><StaffApprovals /></ProtectedRoute>} />
       <Route path="/announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />

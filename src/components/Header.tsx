@@ -162,9 +162,11 @@ export function Header({ onMenuClick }: HeaderProps) {
             </Button>
           )}
           <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">G</span>
-            </div>
+            <img
+              src="/logo.png"
+              alt="Grievance Portal Logo"
+              className="h-8 w-8 rounded-lg object-contain"
+            />
             <div className="hidden sm:block">
               <h1 className="text-lg font-semibold font-display text-foreground">
                 Grievance Portal

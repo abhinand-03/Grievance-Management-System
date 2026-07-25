@@ -99,12 +99,17 @@ export const grievancesApi = {
     adminView?: string;
     category?: string;
     page?: number;
+    /** Number of records per page. Pass a large value (e.g. 100) to avoid
+     *  silent pagination truncation on admin / staff views. */
     limit?: number;
   }) => {
     const queryParams = new URLSearchParams();
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
-        if (value) queryParams.append(key, String(value));
+        // Skip undefined / null; keep 0 and other falsy-but-valid numbers
+        if (value !== undefined && value !== null && value !== '') {
+          queryParams.append(key, String(value));
+        }
       });
     }
     const query = queryParams.toString();
@@ -405,10 +410,123 @@ export const announcementsApi = {
   },
 };
 
+
+// Escalations API
+export const escalationsApi = {
+  /**
+   * Fetch all escalated grievances.
+   * Supports filters: search, department, category, status, priority,
+   * escalation_type, date_from, date_to, page, limit.
+   */
+  getAll: async (params?: {
+    search?: string;
+    department?: string;
+    category?: string;
+    status?: string;
+    priority?: string;
+    escalation_type?: string;
+    date_from?: string;
+    date_to?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          queryParams.append(key, String(value));
+        }
+      });
+    }
+    const query = queryParams.toString();
+    return apiRequest<{
+      escalations: any[];
+      summary: { total: number; manual_count: number; auto_count: number; critical_count: number };
+      pagination: any;
+    }>(`/escalations.php${query ? `?${query}` : ''}`);
+  },
+
+  /**
+   * Staff manually escalates a grievance to the Principal.
+   * @param id  Grievance ID
+   * @param reason  Required explanation
+   */
+  manualEscalate: async (id: string | number, reason: string) => {
+    return apiRequest<any>(`/escalations.php?id=${id}`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
+
+  /**
+   * Principal updates the status on an escalated grievance.
+   * Allowed statuses: 'solved', 'considered', 'denied'.
+   */
+  updateStatus: async (
+    id: string | number,
+    data: { status: 'solved' | 'considered' | 'denied'; reason?: string }
+  ) => {
+    return apiRequest<any>(`/escalations.php?id=${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Trigger the auto-escalation check on the server.
+   * Returns { escalated: number, skipped: number }.
+   * Safe to call repeatedly — already-escalated rows are skipped.
+   */
+  runAutoEscalate: async () => {
+    return apiRequest<{ message: string; escalated: number; skipped: number }>(
+      '/escalations.php?action=auto-escalate'
+    );
+  },
+
+  /**
+   * Return grievances that are overdue (>= 7 working days) but NOT yet escalated.
+   */
+  getPendingOverdue: async () => {
+    return apiRequest<{ overdue: any[]; count: number }>(
+      '/escalations.php?action=pending-overdue'
+    );
+  },
+};
+
+// Principal Dashboard API
+export const principalDashboardApi = {
+  getDashboardData: async (params?: {
+    search?: string;
+    department?: string;
+    category?: string;
+    priority?: string;
+    status?: string;
+    date_from?: string;
+    date_to?: string;
+  }) => {
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          queryParams.append(key, String(value));
+        }
+      });
+    }
+    const query = queryParams.toString();
+    return apiRequest<import('@/types/grievance').PrincipalDashboardResponse>(
+      `/principal_dashboard.php${query ? `?${query}` : ''}`
+    );
+  },
+};
+
 export default {
   auth: authApi,
   grievances: grievancesApi,
   comments: commentsApi,
   users: usersApi,
   announcements: announcementsApi,
+  escalations: escalationsApi,
+  principalDashboard: principalDashboardApi,
 };
+
+

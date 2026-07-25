@@ -62,9 +62,11 @@ export default function Index() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-lg gradient-primary flex items-center justify-center shadow-md">
-                <span className="text-primary-foreground font-bold">G</span>
-              </div>
+              <img
+                src="/logo.png"
+                alt="Grievance Portal Logo"
+                className="h-9 w-9 rounded-lg object-contain"
+              />
               <span className="text-lg font-semibold font-display">Grievance Portal</span>
             </div>
             <Button onClick={() => navigate('/login')}>
@@ -200,9 +202,11 @@ export default function Index() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-sm">G</span>
-              </div>
+              <img
+                src="/logo.png"
+                alt="Grievance Portal Logo"
+                className="h-8 w-8 rounded-lg object-contain"
+              />
               <span className="text-sm font-medium">Grievance Portal</span>
             </div>
             <p className="text-sm text-muted-foreground">

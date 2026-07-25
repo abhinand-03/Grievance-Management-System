@@ -203,9 +203,11 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           {/* Header */}
           <div className="flex h-16 items-center justify-between px-4 border-b border-sidebar-border">
             <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-lg gradient-accent flex items-center justify-center shadow-md">
-                <span className="text-accent-foreground font-bold">G</span>
-              </div>
+              <img
+                src="/logo.png"
+                alt="Grievance Cell Logo"
+                className="h-9 w-9 rounded-lg object-contain"
+              />
               <div>
                 <h2 className="text-sm font-semibold text-sidebar-foreground font-display">
                   Grievance Cell

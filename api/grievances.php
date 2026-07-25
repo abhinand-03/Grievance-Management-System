@@ -47,56 +47,68 @@ function getGrievances() {
     $authUser = requireAuth();
     $db = getDB();
     
-    $status = $_GET['status'] ?? null;
+    $status    = $_GET['status']    ?? null;
     $adminView = $_GET['adminView'] ?? null;
-    $category = $_GET['category'] ?? null;
-    $priority = $_GET['priority'] ?? null;
-    $page = (int)($_GET['page'] ?? 1);
-    $limit = (int)($_GET['limit'] ?? 10);
-    $offset = ($page - 1) * $limit;
+    $category  = $_GET['category']  ?? null;
+    $priority  = $_GET['priority']  ?? null;
+    $page      = max(1, (int)($_GET['page']  ?? 1));
+    // Bug Fix #2: raise default page size from 10 → 100 and cap at 200
+    // so the Principal's "All Grievances" view is never silently truncated.
+    $limit     = min(200, max(1, (int)($_GET['limit'] ?? 100)));
+    $offset    = ($page - 1) * $limit;
     
-    $where = [];
+    $where  = [];
     $params = [];
     
-    // Filter by user role
+    // ---------- Role-based visibility ----------
     if ($authUser['role'] === 'student') {
+        // Students only see their own grievances
         $where[] = "g.student_id = ?";
         $params[] = $authUser['id'];
+
     } else if ($authUser['role'] === 'admin') {
+        // Bug Fix #1 (PRIMARY): The previous code unconditionally restricted
+        // the admin view to only 'escalated', 'solved', 'considered', 'denied'.
+        // This caused ALL pending/in_review/resolved grievances to be invisible
+        // to the Principal on the "All Grievances" page.
+        //
+        // Fix: admin sees EVERY grievance by default. We only add a WHERE clause
+        // for the special 'faculty_resolved' sub-view (not an explicit status filter).
         if ($adminView === 'faculty_resolved') {
-            // Principal-only view for grievances resolved by faculty without escalation.
+            // Principal-only view: grievances resolved by staff that were never forwarded.
             $where[] = "g.status = 'resolved' AND g.escalated_at IS NULL";
-        } else {
-            // Admin (Principal) sees escalated grievances and those they've already processed.
-            $where[] = "(g.status = 'escalated' OR g.status IN ('solved', 'considered', 'denied'))";
         }
+        // No extra WHERE for the default admin view → all grievances are returned.
+        // If the user chose a specific status from the dropdown the $status filter
+        // added below will narrow results as expected.
+
     } else if ($authUser['role'] === 'staff') {
-        // Staff sees ONLY grievances assigned to them or matching their specific department/category
+        // Staff sees ONLY grievances assigned to them or matching their department/category
         $staffDept = $authUser['department'] ?? '';
         
-        // Map departments to categories they handle
+        // Map departments to the categories they handle
         $deptToCategoryMapping = [
-            'Library' => 'library',
-            'Mens Hostel' => 'mens_hostel',
+            'Library'       => 'library',
+            'Mens Hostel'   => 'mens_hostel',
             'Womens Hostel' => 'womens_hostel',
-            'Canteen' => 'canteen'
+            'Canteen'       => 'canteen',
         ];
         
         $mappedCategory = $deptToCategoryMapping[$staffDept] ?? null;
         
         if ($mappedCategory) {
-            // Staff from specific departments see ONLY grievances assigned to them OR in their category
+            // Specific-department staff see grievances assigned to them OR in their category
             $where[] = "(g.assigned_to = ? OR g.category = ?)";
             $params[] = $authUser['id'];
             $params[] = $mappedCategory;
         } else {
-            // HOD staff see ONLY grievances assigned to them
-            // They receive academics grievances from students in their department via auto-assignment
+            // HOD staff see only grievances assigned to them
             $where[] = "g.assigned_to = ?";
             $params[] = $authUser['id'];
         }
     }
     
+    // ---------- Optional filters (apply for all roles) ----------
     if ($status) {
         $where[] = "g.status = ?";
         $params[] = $status;
@@ -112,29 +124,36 @@ function getGrievances() {
         $params[] = $priority;
     }
     
-    $whereClause = count($where) > 0 ? "WHERE " . implode(" AND ", $where) : "";
+    $whereClause = count($where) > 0 ? 'WHERE ' . implode(' AND ', $where) : '';
     
-    // Get total count
+    // ---------- Total count ----------
     $countSql = "SELECT COUNT(*) as total FROM grievances g $whereClause";
     $stmt = $db->prepare($countSql);
     $stmt->execute($params);
-    $total = $stmt->fetch()['total'];
+    $total = (int)$stmt->fetch()['total'];
     
-    // Determine sort order based on user role
-    // Admin sees escalated grievances sorted by priority (critical first) then by escalation date (oldest first)
+    // ---------- Sort order ----------
+    // Admin: critical/high priority first, then oldest escalation date, then oldest submission.
+    // Others: newest first.
     if ($authUser['role'] === 'admin') {
         $orderBy = "ORDER BY FIELD(g.priority, 'critical', 'high', 'medium', 'low'), g.escalated_at ASC, g.created_at ASC";
     } else {
         $orderBy = "ORDER BY g.created_at DESC";
     }
     
-    // Get grievances
-    $sql = "SELECT g.*, 
-            (SELECT COUNT(*) FROM comments c WHERE c.grievance_id = g.id) as comment_count,
-            (SELECT COUNT(*) FROM attachments a WHERE a.grievance_id = g.id) as attachment_count
-            FROM grievances g 
-            $whereClause 
-            $orderBy 
+    // ---------- Bug Fix #3: JOIN students table to include register_number & department ----------
+    // The grievances table only stores student_id (FK), student_name and student_email.
+    // We JOIN students so the Principal can see each student's register number and department.
+    $sql = "SELECT
+                g.*,
+                s.student_id   AS register_number,
+                s.department   AS student_department,
+                (SELECT COUNT(*) FROM comments    c WHERE c.grievance_id = g.id) AS comment_count,
+                (SELECT COUNT(*) FROM attachments a WHERE a.grievance_id = g.id) AS attachment_count
+            FROM grievances g
+            LEFT JOIN students s ON s.id = g.student_id
+            $whereClause
+            $orderBy
             LIMIT $limit OFFSET $offset";
     
     $stmt = $db->prepare($sql);
@@ -144,11 +163,11 @@ function getGrievances() {
     jsonResponse([
         'grievances' => $grievances,
         'pagination' => [
-            'page' => $page,
-            'limit' => $limit,
-            'total' => $total,
-            'totalPages' => ceil($total / $limit)
-        ]
+            'page'       => $page,
+            'limit'      => $limit,
+            'total'      => $total,
+            'totalPages' => (int)ceil($total / $limit),
+        ],
     ]);
 }
 
@@ -521,8 +540,9 @@ function getStats() {
         $where = "WHERE student_id = ?";
         $params[] = $authUser['id'];
     } else if ($authUser['role'] === 'admin') {
-        // Admin (Principal) stats for escalated and processed grievances
-        $where = "WHERE status IN ('escalated', 'solved', 'considered', 'denied')";
+        // Bug Fix #4: Admin stats previously only counted escalated/processed grievances,
+        // making totalGrievances misleading. Admin now sees counts across ALL grievances.
+        $where = ""; // No restriction — count everything
     } else if ($authUser['role'] === 'staff') {
         // Staff sees ONLY grievances assigned to them or matching their specific department/category
         $staffDept = $authUser['department'] ?? '';

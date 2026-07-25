@@ -4,39 +4,26 @@ import { DashboardLayout } from '@/components/DashboardLayout';
 import { StatsCard } from '@/components/StatsCard';
 import { GrievanceCard } from '@/components/GrievanceCard';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { grievancesApi } from '@/services/api';
-import { Grievance, DashboardStats } from '@/types/grievance';
+import { grievancesApi, principalDashboardApi } from '@/services/api';
+import { Grievance, DashboardStats, PrincipalDashboardResponse } from '@/types/grievance';
 import { useNavigate } from 'react-router-dom';
 import {
   FileText,
   Clock,
   CheckCircle2,
-  AlertTriangle,
   TrendingUp,
   PlusCircle,
   ArrowRight,
-  BarChart3,
-  ThumbsUp,
-  Eye,
-  Ban,
   RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-} from 'recharts';
-import { CATEGORY_LABELS, GrievanceCategory } from '@/types/grievance';
+import { CATEGORY_LABELS } from '@/types/grievance';
 
-const COLORS = ['#0d9488', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#10b981', '#6b7280'];
+// Principal Dashboard Modular Components
+import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
+import { PrincipalStatsCards } from '@/components/dashboard/PrincipalStatsCards';
+import { PrincipalCharts } from '@/components/dashboard/PrincipalCharts';
+
 
 const defaultStats: DashboardStats = {
   totalGrievances: 0,
@@ -57,20 +44,49 @@ const defaultStats: DashboardStats = {
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  // Student/Staff state
   const [stats, setStats] = useState<DashboardStats>(defaultStats);
   const [grievances, setGrievances] = useState<Grievance[]>([]);
+  
+  // Principal Dashboard state
+  const [principalData, setPrincipalData] = useState<PrincipalDashboardResponse | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async (showLoading = true) => {
+  // ── 1. Fetch Principal Dashboard Data (Admin Only) ──
+  const fetchPrincipalData = useCallback(async (showLoading = true) => {
     try {
       if (showLoading) setLoading(true);
       setRefreshing(true);
+      setError(null);
+
+      const response = await principalDashboardApi.getDashboardData();
+      setPrincipalData(response);
+    } catch (err: any) {
+      console.error('Failed to fetch principal dashboard data:', err);
+      setError(err?.message || 'Failed to load principal dashboard statistics.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+
+  // ── 2. Fetch Student / Staff Dashboard Data ──
+  const fetchStudentStaffData = useCallback(async (showLoading = true) => {
+    try {
+      if (showLoading) setLoading(true);
+      setRefreshing(true);
+      setError(null);
+
       const [statsData, grievancesData] = await Promise.all([
         grievancesApi.getStats(),
-        grievancesApi.getAll({ limit: 10 })
+        grievancesApi.getAll({ limit: 10 }),
       ]);
-      // Merge API response with defaults to ensure all fields are present
+
       setStats({
         ...defaultStats,
         ...statsData,
@@ -88,7 +104,7 @@ export default function Dashboard() {
         priorityBreakdown: statsData?.priorityBreakdown || defaultStats.priorityBreakdown,
         monthlyTrend: statsData?.monthlyTrend || [],
       });
-      // Transform API response from snake_case to camelCase
+
       const transformedGrievances = (grievancesData.grievances || []).map((g: any) => ({
         ...g,
         ticketNumber: g.ticket_number,
@@ -106,46 +122,101 @@ export default function Dashboard() {
         resolvedAt: g.resolved_at ? new Date(g.resolved_at) : undefined,
         escalatedAt: g.escalated_at ? new Date(g.escalated_at) : undefined,
       }));
+
       setGrievances(transformedGrievances);
-    } catch (error) {
-      console.error('Failed to fetch dashboard data:', error);
+    } catch (err: any) {
+      console.error('Failed to fetch dashboard data:', err);
+      setError(err?.message || 'Failed to load dashboard statistics.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  // Initial fetch
+  const refreshCurrentView = useCallback((showLoading = false) => {
+    if (user?.role === 'admin') {
+      fetchPrincipalData(showLoading);
+    } else if (user) {
+      fetchStudentStaffData(showLoading);
+    }
+  }, [user, fetchPrincipalData, fetchStudentStaffData]);
+
+  // Initial Fetch on mount or user change
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (user?.role === 'admin') {
+      fetchPrincipalData(true);
+    } else if (user) {
+      fetchStudentStaffData(true);
+    }
+  }, [user, fetchPrincipalData, fetchStudentStaffData]);
 
   // Auto-refresh every 30 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchData(false);
+      refreshCurrentView(false);
     }, 30000);
     return () => clearInterval(interval);
-  }, [fetchData]);
+  }, [refreshCurrentView]);
 
-  // Refresh when window gains focus
+  // Refresh on window focus
   useEffect(() => {
-    const handleFocus = () => fetchData(false);
+    const handleFocus = () => refreshCurrentView(false);
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [fetchData]);
+  }, [refreshCurrentView]);
 
-  const recentGrievances = grievances.slice(0, 3);
+  // Handle Principal Filters
+  const handleApplyFilters = (filters: DashboardFilterState) => {
+    setActiveFilters(filters);
+    fetchPrincipalData(true, filters);
+  };
 
-  // Prepare chart data
-  const categoryData = Object.entries(stats.categoryBreakdown).map(([key, value]) => ({
-    name: CATEGORY_LABELS[key as GrievanceCategory],
-    value,
-  }));
+  const handleResetFilters = () => {
+    setActiveFilters(INITIAL_FILTER_STATE);
+    fetchPrincipalData(true, INITIAL_FILTER_STATE);
+  };
 
+  // ── Skeleton Loader ──
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div className="h-32 bg-card/60 rounded-2xl animate-pulse border border-border" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+              <div key={i} className="h-28 bg-card/60 rounded-xl animate-pulse border border-border" />
+            ))}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="h-72 bg-card/60 rounded-xl animate-pulse border border-border" />
+            <div className="h-72 bg-card/60 rounded-xl animate-pulse border border-border" />
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // ── Error State ──
+  if (error && !principalData && grievances.length === 0) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+          <div className="p-4 rounded-full bg-destructive/10 text-destructive border border-destructive/20">
+            <AlertCircle className="h-8 w-8" />
+          </div>
+          <h2 className="text-xl font-semibold">Unable to Load Dashboard</h2>
+          <p className="text-sm text-muted-foreground max-w-md">{error}</p>
+          <Button onClick={() => refreshCurrentView(true)} className="gap-2">
+            <RefreshCw className="h-4 w-4" /> Retry Loading
+          </Button>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // ── Student Dashboard View ──
   const StudentDashboard = () => (
     <>
-      {/* Welcome Banner */}
       <div className="gradient-primary rounded-2xl p-6 sm:p-8 mb-8 text-primary-foreground">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -157,17 +228,17 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex gap-2 flex-shrink-0">
-            <Button 
-              variant="heroOutline" 
+            <Button
+              variant="heroOutline"
               size="icon"
-              onClick={() => fetchData(false)}
+              onClick={() => fetchStudentStaffData(false)}
               disabled={refreshing}
               title="Refresh"
             >
               <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
             </Button>
-            <Button 
-              variant="heroOutline" 
+            <Button
+              variant="heroOutline"
               size="lg"
               onClick={() => navigate('/grievance/new')}
             >
@@ -178,7 +249,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
         <StatsCard
           title="Total Submitted"
@@ -210,7 +280,6 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Recent Grievances */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold font-display">Recent Grievances</h2>
@@ -220,7 +289,7 @@ export default function Dashboard() {
           </Button>
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {recentGrievances.map((grievance) => (
+          {grievances.slice(0, 3).map((grievance) => (
             <GrievanceCard
               key={grievance.id}
               grievance={grievance}
@@ -233,9 +302,9 @@ export default function Dashboard() {
     </>
   );
 
+  // ── Staff Dashboard View ──
   const StaffDashboard = () => (
     <>
-      {/* Welcome Banner */}
       <div className="gradient-primary rounded-2xl p-6 sm:p-8 mb-8 text-primary-foreground">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -246,10 +315,10 @@ export default function Dashboard() {
               Review and manage assigned grievances. {stats.pending} pending your attention.
             </p>
           </div>
-          <Button 
-            variant="heroOutline" 
+          <Button
+            variant="heroOutline"
             size="icon"
-            onClick={() => fetchData(false)}
+            onClick={() => fetchStudentStaffData(false)}
             disabled={refreshing}
             title="Refresh"
             className="flex-shrink-0"
@@ -259,7 +328,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
         <StatsCard
           title="Assigned to You"
@@ -280,14 +348,13 @@ export default function Dashboard() {
           variant="accent"
         />
         <StatsCard
-          title="Resolved (This Month)"
+          title="Resolved"
           value={stats.resolved}
           icon={CheckCircle2}
           variant="success"
         />
       </div>
 
-      {/* Grievances List */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold font-display">Requires Attention</h2>
@@ -298,7 +365,7 @@ export default function Dashboard() {
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {grievances
-            .filter(g => g.status === 'pending' || g.status === 'in_review')
+            .filter((g) => g.status === 'pending' || g.status === 'in_review')
             .slice(0, 3)
             .map((grievance) => (
               <GrievanceCard
@@ -312,135 +379,52 @@ export default function Dashboard() {
     </>
   );
 
-  const AdminDashboard = () => (
-    <>
-      {/* Welcome Banner */}
-      <div className="gradient-primary rounded-2xl p-6 sm:p-8 mb-8 text-primary-foreground">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold font-display mb-2">
-              Principal Dashboard
-            </h1>
-            <p className="text-primary-foreground/80">
-              Review escalated grievances forwarded by HODs. {stats.escalated} awaiting your decision.
-            </p>
-          </div>
-          <Button 
-            variant="heroOutline" 
-            size="icon"
-            onClick={() => fetchData(false)}
-            disabled={refreshing}
-            title="Refresh"
-            className="flex-shrink-0"
-          >
-            <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
-          </Button>
-        </div>
-      </div>
+  // ── Principal / Admin Executive Dashboard View ──
+  const PrincipalDashboardView = () => {
+    if (!principalData) return null;
 
-      {/* Stats Grid - Principal specific */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
-        <StatsCard
-          title="Awaiting Decision"
-          value={stats.escalated}
-          icon={AlertTriangle}
-          variant="danger"
-          subtitle="Escalated by HODs"
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <DashboardHeader
+          userName={user?.name}
+          lastUpdated={
+            principalData.timestamp
+              ? new Date(principalData.timestamp).toLocaleTimeString('en-IN', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                })
+              : new Date().toLocaleTimeString()
+          }
+          refreshing={refreshing}
+          unreadNotifications={principalData.unreadNotifications || 0}
+          onRefresh={() => fetchPrincipalData(false)}
         />
-        <StatsCard
-          title="Solved"
-          value={stats.solved || 0}
-          icon={ThumbsUp}
-          variant="success"
-          subtitle="Resolved by Principal"
-        />
-        <StatsCard
-          title="Considered"
-          value={stats.considered || 0}
-          icon={Eye}
-          variant="accent"
-          subtitle="Under consideration"
-        />
-        <StatsCard
-          title="Denied"
-          value={stats.denied || 0}
-          icon={Ban}
-          variant="warning"
-          subtitle="Request denied"
-        />
-      </div>
 
-      {/* Escalated Grievances - Requires Principal Decision */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold font-display flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-purple-600" />
-            Escalated Grievances - Awaiting Decision
-          </h2>
-          <Button variant="ghost" size="sm" onClick={() => navigate('/grievances')}>
-            View all
-            <ArrowRight className="h-4 w-4 ml-1" />
-          </Button>
-        </div>
-        {grievances.filter(g => g.status === 'escalated').length === 0 ? (
-          <Card className="shadow-card">
-            <CardContent className="py-8 text-center text-muted-foreground">
-              <CheckCircle2 className="h-12 w-12 mx-auto mb-3 text-green-500" />
-              <p>No escalated grievances pending your decision.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {grievances
-              .filter(g => g.status === 'escalated')
-              .slice(0, 6)
-              .map((grievance) => (
-                <GrievanceCard
-                  key={grievance.id}
-                  grievance={grievance}
-                  onClick={() => navigate(`/grievance/${grievance.id}`)}
-                />
-              ))}
-          </div>
-        )}
-      </div>
+        {/* 8 Live Statistics Cards */}
+        <PrincipalStatsCards
+          stats={principalData.stats}
+          departmentStats={principalData.departmentStats}
+        />
 
-      {/* Recently Processed by Principal */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold font-display">
-            Recently Processed
-          </h2>
-        </div>
-        {grievances.filter(g => ['solved', 'considered', 'denied'].includes(g.status)).length === 0 ? (
-          <Card className="shadow-card">
-            <CardContent className="py-8 text-center text-muted-foreground">
-              <p>No processed grievances yet.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {grievances
-              .filter(g => ['solved', 'considered', 'denied'].includes(g.status))
-              .slice(0, 3)
-              .map((grievance) => (
-                <GrievanceCard
-                  key={grievance.id}
-                  grievance={grievance}
-                  onClick={() => navigate(`/grievance/${grievance.id}`)}
-                />
-              ))}
-          </div>
-        )}
+        {/* 4 Interactive Recharts */}
+        <PrincipalCharts
+          monthlyStats={principalData.monthlyStats}
+          statusDistribution={principalData.statusDistribution}
+          departmentStats={principalData.departmentStats}
+          categoryStats={principalData.categoryStats}
+        />
       </div>
-    </>
-  );
+    );
+  };
+
 
   return (
     <DashboardLayout>
       {user?.role === 'student' && <StudentDashboard />}
       {user?.role === 'staff' && <StaffDashboard />}
-      {user?.role === 'admin' && <AdminDashboard />}
+      {user?.role === 'admin' && <PrincipalDashboardView />}
     </DashboardLayout>
   );
 }

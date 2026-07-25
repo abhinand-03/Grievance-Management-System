@@ -57,6 +57,7 @@ export interface Grievance {
   studentName: string;
   studentEmail: string;
   category: GrievanceCategory;
+  priority: 'low' | 'medium' | 'high' | 'critical';
   status: GrievanceStatus;
   subject: string;
   description: string;
@@ -71,6 +72,29 @@ export interface Grievance {
   resolvedAt?: Date;
   escalatedAt?: Date;
 }
+
+/** Extended Grievance returned by the escalations API. */
+export interface EscalatedGrievance extends Grievance {
+  /** Register number from the students table (via JOIN). */
+  registerNumber?: string;
+  /** Department from the students table (via JOIN). */
+  studentDepartment?: string;
+  /** True when the escalation process has been triggered. */
+  isEscalated: boolean;
+  /** Target of escalation — always "Principal" for now. */
+  escalatedTo?: string;
+  /** How the escalation was triggered. */
+  escalationType?: 'manual' | 'automatic';
+  /** Name of the staff member or "System" that escalated. */
+  escalatedByName?: string;
+  /** Human-readable reason entered at escalation time. */
+  escalationReason?: string;
+  /** Timestamp when the escalation was recorded. */
+  escalationDate?: Date;
+  /** Working days elapsed since submission (recomputed live by backend). */
+  pendingWorkingDays: number;
+}
+
 
 export interface DashboardStats {
   totalGrievances: number;
@@ -118,3 +142,44 @@ export const STAFF_ACTION_LABELS: Record<string, string> = {
   rejected: 'Rejected',
   escalated: 'Forward to Principal',
 };
+
+export interface ActivityLogItem {
+  id: string;
+  grievance_id: number;
+  ticket_number: string;
+  grievance_subject: string;
+  from_status: GrievanceStatus | null;
+  to_status: GrievanceStatus;
+  changed_by_name: string;
+  changed_by_type: string;
+  reason?: string;
+  created_at: string;
+}
+
+export interface DepartmentStatItem {
+  department: string;
+  count: number;
+}
+
+export interface PrincipalDashboardResponse {
+  stats: {
+    totalGrievances: number;
+    pendingEscalations: number;
+    resolvedToday: number;
+    underReview: number;
+    rejected: number;
+    pending7Days: number;
+    averageResolutionHours: number;
+    averageResolutionTime: string;
+  };
+  departmentStats: DepartmentStatItem[];
+  monthlyStats: { month: string; count: number }[];
+  categoryStats: { category: string; count: number }[];
+  statusDistribution: { status: string; count: number }[];
+  recentEscalations: any[];
+  recentResolved: any[];
+  recentActivities: ActivityLogItem[];
+  unreadNotifications: number;
+  timestamp: string;
+}
+
